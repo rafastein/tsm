@@ -1,156 +1,144 @@
-"use client";
-
-import { useMemo, useState } from "react";
-
-type StravaActivity = {
+type Activity = {
   id: number;
-  name: string;
-  distance: number;
-  moving_time: number;
-  elapsed_time: number;
-  total_elevation_gain: number;
-  type: string;
-  start_date_local: string;
+  name?: string;
+  type?: string;
+  distance?: number | null;
+  moving_time?: number | null;
+  elapsed_time?: number | null;
+  total_elevation_gain?: number | null;
+  start_date?: string | null;
+  start_date_local?: string | null;
+  average_speed?: number | null;
 };
 
 type Props = {
-  activities: StravaActivity[];
+  activities: Activity[];
 };
 
-function formatDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+function formatDistance(distance?: number | null) {
+  const meters = typeof distance === "number" ? distance : 0;
+  return `${(meters / 1000).toFixed(2)} km`;
+}
 
-  if (hours > 0) {
-    return `${hours}h ${minutes}min`;
+function formatDuration(seconds?: number | null) {
+  const total = Math.max(0, Math.round(typeof seconds === "number" ? seconds : 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
 
-  return `${minutes} min`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+function formatDate(date?: string | null) {
+  if (!date) return "Data indisponível";
+
+  try {
+    return new Date(date).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return "Data indisponível";
+  }
 }
 
-function formatPace(distanceMeters: number, movingTimeSeconds: number) {
-  if (!distanceMeters || !movingTimeSeconds) return "-";
+function formatPace(distance?: number | null, movingTime?: number | null) {
+  const meters = typeof distance === "number" ? distance : 0;
+  const seconds = typeof movingTime === "number" ? movingTime : 0;
 
-  const paceInSecondsPerKm = movingTimeSeconds / (distanceMeters / 1000);
-  const minutes = Math.floor(paceInSecondsPerKm / 60);
-  const seconds = Math.round(paceInSecondsPerKm % 60);
+  if (meters <= 0 || seconds <= 0) return "-";
 
-  return `${minutes}:${String(seconds).padStart(2, "0")}/km`;
+  const paceSeconds = seconds / (meters / 1000);
+  const min = Math.floor(paceSeconds / 60);
+  const sec = Math.round(paceSeconds % 60);
+
+  if (sec === 60) {
+    return `${min + 1}:00/km`;
+  }
+
+  return `${min}:${String(sec).padStart(2, "0")}/km`;
 }
 
 export default function ActivitiesPanel({ activities }: Props) {
-  const [filter, setFilter] = useState("All");
-
-  const availableTypes = useMemo(() => {
-    const types = Array.from(new Set(activities.map((activity) => activity.type)));
-    return ["All", ...types];
-  }, [activities]);
-
-  const filteredActivities = useMemo(() => {
-    if (filter === "All") return activities;
-    return activities.filter((activity) => activity.type === filter);
-  }, [activities, filter]);
+  const recentActivities = [...activities]
+    .sort((a, b) => {
+      const da = new Date(a.start_date_local ?? a.start_date ?? 0).getTime();
+      const db = new Date(b.start_date_local ?? b.start_date ?? 0).getTime();
+      return db - da;
+    })
+    .slice(0, 12);
 
   return (
     <section className="rounded-3xl bg-white p-6 shadow-sm">
-      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="text-xl font-semibold text-gray-900">Atividades recentes</h3>
-          <p className="text-sm text-gray-500">
-            Filtre por tipo e acompanhe seus treinos mais recentes.
-          </p>
-        </div>
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">Atividades recentes</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Últimos treinos puxados do Strava.
+        </p>
+      </div>
 
-        <div className="flex flex-wrap gap-2">
-          {availableTypes.map((type) => {
-            const active = filter === type;
+      {recentActivities.length === 0 ? (
+        <p className="text-sm text-gray-500">Nenhuma atividade encontrada.</p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {recentActivities.map((activity) => {
+            const date = activity.start_date_local ?? activity.start_date;
 
             return (
-              <button
-                key={type}
-                onClick={() => setFilter(type)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  active
-                    ? "bg-orange-500 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+              <div
+                key={activity.id}
+                className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
               >
-                {type}
-              </button>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {activity.name ?? "Atividade"}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {activity.type ?? "Sem tipo"} • {formatDate(date)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-gray-500">Distância</p>
+                    <p className="mt-1 font-semibold text-gray-900">
+                      {formatDistance(activity.distance)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-gray-500">Tempo</p>
+                    <p className="mt-1 font-semibold text-gray-900">
+                      {formatDuration(activity.moving_time ?? activity.elapsed_time)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-gray-500">Pace</p>
+                    <p className="mt-1 font-semibold text-gray-900">
+                      {formatPace(activity.distance, activity.moving_time)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-3">
+                    <p className="text-gray-500">Elevação</p>
+                    <p className="mt-1 font-semibold text-gray-900">
+                      {Math.round(activity.total_elevation_gain ?? 0)} m
+                    </p>
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
-      </div>
-
-      <div className="grid gap-4">
-        {filteredActivities.map((activity) => (
-          <div
-            key={activity.id}
-            className="rounded-2xl border border-gray-200 p-4 transition hover:shadow-sm"
-          >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                    {activity.type}
-                  </span>
-                </div>
-
-                <h4 className="text-lg font-semibold text-gray-900">{activity.name}</h4>
-                <p className="text-sm text-gray-500">
-                  {formatDate(activity.start_date_local)}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-                <div>
-                  <p className="text-gray-500">Distância</p>
-                  <p className="font-semibold text-gray-900">
-                    {(activity.distance / 1000).toFixed(2)} km
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Tempo</p>
-                  <p className="font-semibold text-gray-900">
-                    {formatDuration(activity.moving_time)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Pace</p>
-                  <p className="font-semibold text-gray-900">
-                    {activity.type === "Run"
-                      ? formatPace(activity.distance, activity.moving_time)
-                      : "-"}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Elevação</p>
-                  <p className="font-semibold text-gray-900">
-                    {activity.total_elevation_gain} m
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {filteredActivities.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500">
-            Nenhuma atividade encontrada para esse filtro.
-          </div>
-        )}
-      </div>
+      )}
     </section>
   );
 }
