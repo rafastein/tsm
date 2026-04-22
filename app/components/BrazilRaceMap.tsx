@@ -13,11 +13,7 @@ type Props = {
 };
 
 const geoUrl = "/maps/brazil-states.geojson";
-
-/**
- * Cast isolado para evitar dor com tipos "branded" de Longitude/Latitude
- */
-const MAP_CENTER = [-53.4, -16.2] as unknown as [number, number];
+const MAP_CENTER = [-53.4, -16.2] as any;
 
 function normalizeText(value: string) {
   return String(value ?? "")
@@ -90,13 +86,11 @@ export default function BrazilRaceMap({ counts }: Props) {
 
         const data = await res.json();
 
-        // GeoJSON
         if (isFeatureCollection(data)) {
           if (active) setGeographyData(data);
           return;
         }
 
-        // TopoJSON
         if (isTopology(data)) {
           const key = Object.keys(data.objects)[0];
           if (!key) throw new Error("TopoJSON inválido");
@@ -125,9 +119,7 @@ export default function BrazilRaceMap({ counts }: Props) {
 
   return (
     <div className="rounded-3xl bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-gray-900">
-        Mapa do Brasil
-      </h2>
+      <h2 className="text-xl font-semibold text-gray-900">Mapa do Brasil</h2>
 
       <p className="mt-1 text-sm text-gray-500">
         Visualização das corridas por estado.
@@ -160,11 +152,7 @@ export default function BrazilRaceMap({ counts }: Props) {
                     const { sigla, nome, rawSigla, rawNome } =
                       getStateKeys(geo);
 
-                    const count =
-                      counts[sigla] ??
-                      counts[nome] ??
-                      0;
-
+                    const count = counts[sigla] ?? counts[nome] ?? 0;
                     const highlight = count > 0;
 
                     return (
