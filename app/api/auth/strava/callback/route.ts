@@ -1,35 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeCodeForToken } from "@/app/lib/strava-auth";
 
-function getBaseUrl(request: NextRequest) {
-  return process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
-}
-
-export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get("code");
-  const error = request.nextUrl.searchParams.get("error");
-
-  if (error) {
-    return NextResponse.json(
-      { error: `Autorização Strava falhou: ${error}` },
-      { status: 400 }
-    );
-  }
-
-  if (!code) {
-    return NextResponse.json(
-      { error: "Code de autorização não encontrado." },
-      { status: 400 }
-    );
-  }
-
+export async function GET(req: NextRequest) {
   try {
-    await exchangeCodeForToken(code);
-    return NextResponse.redirect(new URL("/", getBaseUrl(request)));
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Falha ao autenticar com o Strava.";
+    const code = req.nextUrl.searchParams.get("code");
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (!code) {
+      return NextResponse.json({ error: "Code não encontrado" }, { status: 400 });
+    }
+
+    const clientId = process.env.STRAVA_CLIENT_ID;
+    const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      return NextResponse.json(
+        { error: "Variáveis de ambiente não configuradas" },
+        { status: 500 }
+      );
+    }
+
+    const response = await fetch("https://www.strava.com/oauth/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Erro ao trocar token", details: data },
+        { status: 500 }
+      );
+    }
+
+    // 👇 Aqui você pode salvar o refresh_token se quiser
+    console.log("REFRESH TOKEN:", data.refresh_token);
+
+    return NextResponse.json({
+      message: "Autorizado com sucesso!",
+      refresh_token: data.refresh_token,
+    });
+
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
