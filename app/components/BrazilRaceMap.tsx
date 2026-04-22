@@ -13,7 +13,11 @@ type Props = {
 };
 
 const geoUrl = "/maps/brazil-states.geojson";
-const BRAZIL_MAP_CENTER = [-53.4, -16.2] as [number, number];
+
+/**
+ * Cast isolado para evitar dor com tipos "branded" de Longitude/Latitude
+ */
+const MAP_CENTER = [-53.4, -16.2] as unknown as [number, number];
 
 function normalizeText(value: string) {
   return String(value ?? "")
@@ -58,11 +62,11 @@ function getStateKeys(geo: any) {
 }
 
 function isFeatureCollection(data: any) {
-  return data && data.type === "FeatureCollection" && Array.isArray(data.features);
+  return data?.type === "FeatureCollection" && Array.isArray(data.features);
 }
 
 function isTopology(data: any) {
-  return data && data.type === "Topology" && data.objects;
+  return data?.type === "Topology" && data.objects;
 }
 
 export default function BrazilRaceMap({ counts }: Props) {
@@ -70,51 +74,49 @@ export default function BrazilRaceMap({ counts }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const hasHighlights = useMemo(
-    () => Object.values(counts).some((value) => value > 0),
+    () => Object.values(counts).some((v) => v > 0),
     [counts]
   );
 
   useEffect(() => {
     let active = true;
 
-    async function loadGeography() {
+    async function load() {
       try {
         setLoadError(null);
 
         const res = await fetch(geoUrl, { cache: "no-store" });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
 
+        // GeoJSON
         if (isFeatureCollection(data)) {
           if (active) setGeographyData(data);
           return;
         }
 
+        // TopoJSON
         if (isTopology(data)) {
-          const objectKey = Object.keys(data.objects)[0];
-          if (!objectKey) {
-            throw new Error("TopoJSON sem objetos.");
-          }
+          const key = Object.keys(data.objects)[0];
+          if (!key) throw new Error("TopoJSON inválido");
 
-          const converted = feature(data, data.objects[objectKey]);
+          const converted = feature(data, data.objects[key]);
           if (active) setGeographyData(converted);
           return;
         }
 
-        throw new Error("Formato geográfico não suportado.");
-      } catch (error: any) {
-        console.error("Erro ao carregar mapa do Brasil:", error);
+        throw new Error("Formato não suportado");
+      } catch (err) {
+        console.error("Erro mapa Brasil:", err);
         if (active) {
           setGeographyData(null);
-          setLoadError("Não foi possível carregar os dados do mapa.");
+          setLoadError("Não foi possível carregar o mapa.");
         }
       }
     }
 
-    loadGeography();
+    load();
 
     return () => {
       active = false;
@@ -123,9 +125,12 @@ export default function BrazilRaceMap({ counts }: Props) {
 
   return (
     <div className="rounded-3xl bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-gray-900">Mapa do Brasil</h2>
+      <h2 className="text-xl font-semibold text-gray-900">
+        Mapa do Brasil
+      </h2>
+
       <p className="mt-1 text-sm text-gray-500">
-        Visualização geográfica das corridas identificadas por estado.
+        Visualização das corridas por estado.
       </p>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#fff,#f8fafc)] p-1">
@@ -143,22 +148,28 @@ export default function BrazilRaceMap({ counts }: Props) {
               projection="geoMercator"
               projectionConfig={{
                 scale: 700,
-                center: BRAZIL_MAP_CENTER,
+                center: MAP_CENTER,
               }}
               width={540}
               height={540}
-              style={{ width: "100%", height: "auto", display: "block" }}
+              style={{ width: "100%", height: "auto" }}
             >
               <Geographies geography={geographyData}>
                 {({ geographies }) =>
-                  geographies.map((geo, index) => {
-                    const { sigla, nome, rawSigla, rawNome } = getStateKeys(geo);
-                    const count = counts[sigla] ?? counts[nome] ?? 0;
-                    const isHighlighted = count > 0;
+                  geographies.map((geo: any, index: number) => {
+                    const { sigla, nome, rawSigla, rawNome } =
+                      getStateKeys(geo);
+
+                    const count =
+                      counts[sigla] ??
+                      counts[nome] ??
+                      0;
+
+                    const highlight = count > 0;
 
                     return (
                       <Geography
-                        key={`${rawSigla || rawNome || "estado"}-${index}`}
+                        key={`${rawSigla || rawNome || "uf"}-${index}`}
                         geography={geo}
                         fill={getFill(count)}
                         stroke="#f8fafc"
@@ -166,21 +177,23 @@ export default function BrazilRaceMap({ counts }: Props) {
                         style={{
                           default: {
                             outline: "none",
-                            transition: "all 0.2s ease",
-                            filter: isHighlighted
-                              ? "drop-shadow(0 4px 8px rgba(0,0,0,0.10))"
+                            transition: "all .2s",
+                            filter: highlight
+                              ? "drop-shadow(0 4px 8px rgba(0,0,0,0.1))"
                               : "none",
                           },
                           hover: {
                             outline: "none",
-                            fill: isHighlighted ? "#f97316" : "#d1d5db",
+                            fill: highlight ? "#f97316" : "#d1d5db",
                           },
                           pressed: {
                             outline: "none",
                           },
                         }}
                       >
-                        <title>{`${rawNome || rawSigla}: ${count} corrida(s)`}</title>
+                        <title>
+                          {`${rawNome || rawSigla}: ${count} corrida(s)`}
+                        </title>
                       </Geography>
                     );
                   })
@@ -201,18 +214,24 @@ export default function BrazilRaceMap({ counts }: Props) {
 
       {!loadError && !hasHighlights && (
         <p className="mt-3 text-sm text-gray-500">
-          O mapa carregou, mas nenhum estado recebeu destaque ainda.
+          Nenhum estado com corridas ainda.
         </p>
       )}
     </div>
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+function Legend({
+  color,
+  label,
+}: {
+  color: string;
+  label: string;
+}) {
   return (
     <div className="flex items-center gap-2">
       <span
-        className="inline-block h-3 w-3 rounded-sm border border-gray-200"
+        className="h-3 w-3 rounded-sm border border-gray-200"
         style={{ backgroundColor: color }}
       />
       <span>{label}</span>
