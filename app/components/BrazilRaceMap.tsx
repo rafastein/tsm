@@ -13,6 +13,7 @@ type Props = {
 };
 
 const geoUrl = "/maps/brazil-states.geojson";
+const BRAZIL_MAP_CENTER = [-53.4, -16.2] as [number, number];
 
 function normalizeText(value: string) {
   return String(value ?? "")
@@ -142,7 +143,7 @@ export default function BrazilRaceMap({ counts }: Props) {
               projection="geoMercator"
               projectionConfig={{
                 scale: 700,
-                center: [-53.4, -16.2],
+                center: BRAZIL_MAP_CENTER,
               }}
               width={540}
               height={540}
