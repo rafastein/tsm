@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { formatBRDate } from "./lib/date-utils";
 import Link from "next/link";
+import { formatBRDate } from "./lib/date-utils";
 import ActivitiesPanel from "./components/ActivitiesPanel";
 import WeeklyComparisonChart from "./components/WeeklyComparisonChart";
 import {
@@ -416,7 +416,7 @@ export default async function Home() {
 
         <section className="mb-8 grid gap-4 md:grid-cols-[1.4fr_.6fr]">
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <h3 className="mb-2 font-semibold">Eficiência nos longões</h3>
+            <h3 className="mb-2 font-semibold">Card de eficiência</h3>
 
             {longRunSummary.totalLongRuns > 0 ? (
               <>
@@ -448,6 +448,10 @@ export default async function Home() {
                   <span className="font-semibold text-gray-900">
                     {formatEfficiency(longRunSummary.bestEfficiency)}
                   </span>
+                </p>
+
+                <p className="mt-3 text-xs text-gray-400">
+                  Quanto maior o número, melhor a relação entre velocidade e esforço cardíaco.
                 </p>
               </>
             ) : (

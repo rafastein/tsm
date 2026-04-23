@@ -8,6 +8,8 @@ import {
   groupStravaRacesByStateBrazil,
   getStravaRaceStats,
   getBrazilStateCountsFromStrava,
+  formatRacePace,
+  formatRaceEfficiency,
 } from "../lib/strava-races";
 
 type Race = {
@@ -19,6 +21,10 @@ type Race = {
   date: string;
   distanceKm: number;
   time: string;
+  paceSecPerKm?: number | null;
+  elevationGain?: number;
+  averageHeartrate?: number | null;
+  efficiency?: number | null;
 };
 
 function parseTimeToSeconds(time: string) {
@@ -50,6 +56,8 @@ function getPaceSeconds(race: Race) {
 }
 
 function formatPaceFromRace(race: Race) {
+  if (race.paceSecPerKm) return formatRacePace(race.paceSecPerKm);
+
   const paceSeconds = getPaceSeconds(race);
 
   if (!Number.isFinite(paceSeconds)) return "-";
@@ -57,11 +65,16 @@ function formatPaceFromRace(race: Race) {
   const min = Math.floor(paceSeconds / 60);
   const sec = Math.round(paceSeconds % 60);
 
-  if (sec === 60) {
-    return `${min + 1}:00/km`;
-  }
+  if (sec === 60) return `${min + 1}:00/km`;
 
   return `${min}:${String(sec).padStart(2, "0")}/km`;
+}
+
+function getTrend(current?: number | null, previous?: number | null) {
+  if (!current || !previous) return "➖";
+  const diff = current - previous;
+  if (Math.abs(diff) < 1) return "➖";
+  return diff > 0 ? "📈" : "📉";
 }
 
 function isFiveK(race: Race) {
@@ -160,7 +173,10 @@ export default async function CorridasBrasilPage() {
             title="Estado líder"
             value={grouped[0]?.stateName ?? grouped[0]?.state ?? "-"}
           />
-          <InfoCard title="Origem" value="Strava" />
+          <InfoCard
+            title="Eficiência média"
+            value={formatRaceEfficiency(stats.averageEfficiency)}
+          />
         </section>
 
         <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
@@ -208,28 +224,43 @@ export default async function CorridasBrasilPage() {
                       {item.stateName}
                     </p>
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
-                      {item.count} corridas
+                      {item.count} {item.count === 1 ? "corrida" : "corridas"}
                     </span>
                   </div>
 
                   <div className="mt-3 space-y-2">
-                    {item.races.map((race) => (
-                      <div
-                        key={race.id}
-                        className="rounded-xl bg-white p-3 text-sm text-gray-700"
-                      >
-                        <p className="font-medium text-gray-900">
-                          {race.name}
-                        </p>
-                        <p className="text-gray-500">
-                          {race.city || "Não identificado"}
-                          {race.state ? `, ${race.state}` : ""} •{" "}
-                          {formatBRDate(race.date)} •{" "}
-                          {race.distanceKm.toFixed(2)} km • {race.time} •{" "}
-                          {formatPaceFromRace(race)}
-                        </p>
-                      </div>
-                    ))}
+                    {item.races.map((race, index) => {
+                      const previous = item.races[index + 1];
+
+                      return (
+                        <div
+                          key={race.id}
+                          className="rounded-xl bg-white p-3 text-sm text-gray-700"
+                        >
+                          <p className="font-medium text-gray-900">
+                            {race.name}
+                          </p>
+
+                          <p className="text-gray-500">
+                            {race.city || "Não identificado"}
+                            {race.state ? `, ${race.state}` : ""} •{" "}
+                            {formatBRDate(race.date)} •{" "}
+                            {race.distanceKm.toFixed(2)} km • {race.time} •{" "}
+                            {formatPaceFromRace(race)}
+                          </p>
+
+                          <p className="mt-1 text-gray-500">
+                            FC{" "}
+                            {race.averageHeartrate
+                              ? `${race.averageHeartrate.toFixed(0)} bpm`
+                              : "-"}{" "}
+                            • Alt {race.elevationGain ?? 0} m • Eficiência{" "}
+                            {formatRaceEfficiency(race.efficiency)} •{" "}
+                            {getTrend(race.efficiency, previous?.efficiency)}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -288,6 +319,10 @@ function TopDistanceCard({
                   <span className={isTopOne ? "font-bold text-gray-900" : ""}>
                     {formatPaceFromRace(race)}
                   </span>
+                </p>
+
+                <p className="mt-1 text-gray-500">
+                  Eficiência {formatRaceEfficiency(race.efficiency)}
                 </p>
               </div>
             );

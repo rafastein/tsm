@@ -141,7 +141,7 @@ export default function WeeklyComparisonChart({
           const actualKm = resolveActualKm(item);
           const adherencePct = resolveAdherencePct(item, actualKm, plannedKm);
           const progressPct = getProgressPct(actualKm, plannedKm);
-          const currentWeek = isCurrent(item);
+          const currentWeek = Boolean(item.isCurrentWeek || isCurrent(item));
 
           return (
             <div

@@ -8,6 +8,8 @@ import {
   groupStravaRacesByCountry,
   getStravaRaceStats,
   getCountryCountsFromStrava,
+  formatRacePace,
+  formatRaceEfficiency,
 } from "../lib/strava-races";
 
 const HALF_MARATHON_KM = 21;
@@ -21,6 +23,10 @@ type Race = {
   date: string;
   distanceKm: number;
   time: string;
+  paceSecPerKm?: number | null;
+  elevationGain?: number;
+  averageHeartrate?: number | null;
+  efficiency?: number | null;
 };
 
 function normalizeText(value: string) {
@@ -44,12 +50,14 @@ function normalizeCountryDisplay(country: string) {
 
   if (normalized === "brazil") return "Brasil";
   if (normalized === "japan") return "Japão";
+
   if (
     normalized === "united states" ||
     normalized === "united states of america"
   ) {
     return "Estados Unidos";
   }
+
   if (normalized === "netherlands" || normalized === "holanda") {
     return "Países Baixos";
   }
@@ -61,6 +69,7 @@ function getCountryCode(country: string) {
   const normalized = normalizeText(country);
 
   if (normalized === "brasil" || normalized === "brazil") return "br";
+
   if (
     normalized === "alemanha" ||
     normalized === "germany" ||
@@ -68,6 +77,7 @@ function getCountryCode(country: string) {
   ) {
     return "de";
   }
+
   if (normalized === "portugal") return "pt";
   if (normalized === "peru") return "pe";
   if (normalized === "argentina") return "ar";
@@ -112,6 +122,7 @@ function getCountryCode(country: string) {
   }
 
   if (normalized === "espanha" || normalized === "spain") return "es";
+
   if (
     normalized === "italia" ||
     normalized === "itália" ||
@@ -133,6 +144,7 @@ function getCountryCode(country: string) {
   if (normalized === "canada" || normalized === "canadá") return "ca";
   if (normalized === "australia" || normalized === "austrália") return "au";
   if (normalized === "irlanda" || normalized === "ireland") return "ie";
+
   if (
     normalized === "suica" ||
     normalized === "suíça" ||
@@ -140,7 +152,9 @@ function getCountryCode(country: string) {
   ) {
     return "ch";
   }
+
   if (normalized === "austria" || normalized === "áustria") return "at";
+
   if (
     normalized === "belgica" ||
     normalized === "bélgica" ||
@@ -148,7 +162,9 @@ function getCountryCode(country: string) {
   ) {
     return "be";
   }
+
   if (normalized === "dinamarca" || normalized === "denmark") return "dk";
+
   if (
     normalized === "suecia" ||
     normalized === "suécia" ||
@@ -156,7 +172,9 @@ function getCountryCode(country: string) {
   ) {
     return "se";
   }
+
   if (normalized === "noruega" || normalized === "norway") return "no";
+
   if (
     normalized === "finlandia" ||
     normalized === "finlândia" ||
@@ -164,6 +182,7 @@ function getCountryCode(country: string) {
   ) {
     return "fi";
   }
+
   if (
     normalized === "polonia" ||
     normalized === "polônia" ||
@@ -171,6 +190,7 @@ function getCountryCode(country: string) {
   ) {
     return "pl";
   }
+
   if (
     normalized === "tchequia" ||
     normalized === "tchéquia" ||
@@ -180,7 +200,9 @@ function getCountryCode(country: string) {
   ) {
     return "cz";
   }
+
   if (normalized === "hungria" || normalized === "hungary") return "hu";
+
   if (
     normalized === "grecia" ||
     normalized === "grécia" ||
@@ -188,7 +210,9 @@ function getCountryCode(country: string) {
   ) {
     return "gr";
   }
+
   if (normalized === "turquia" || normalized === "turkey") return "tr";
+
   if (
     normalized === "africa do sul" ||
     normalized === "áfrica do sul" ||
@@ -196,6 +220,7 @@ function getCountryCode(country: string) {
   ) {
     return "za";
   }
+
   if (
     normalized === "emirados arabes unidos" ||
     normalized === "emirados árabes unidos" ||
@@ -203,6 +228,7 @@ function getCountryCode(country: string) {
   ) {
     return "ae";
   }
+
   if (
     normalized === "nova zelandia" ||
     normalized === "nova zelândia" ||
@@ -254,6 +280,8 @@ function parseTimeToSeconds(time: string) {
 }
 
 function formatPaceFromRace(race: Race) {
+  if (race.paceSecPerKm) return formatRacePace(race.paceSecPerKm);
+
   const totalSeconds = parseTimeToSeconds(race.time);
 
   if (!Number.isFinite(totalSeconds) || !race.distanceKm) return "-";
@@ -262,11 +290,16 @@ function formatPaceFromRace(race: Race) {
   const min = Math.floor(paceSeconds / 60);
   const sec = Math.round(paceSeconds % 60);
 
-  if (sec === 60) {
-    return `${min + 1}:00/km`;
-  }
+  if (sec === 60) return `${min + 1}:00/km`;
 
   return `${min}:${String(sec).padStart(2, "0")}/km`;
+}
+
+function getTrend(current?: number | null, previous?: number | null) {
+  if (!current || !previous) return "➖";
+  const diff = current - previous;
+  if (Math.abs(diff) < 1) return "➖";
+  return diff > 0 ? "📈" : "📉";
 }
 
 function getTopRaceMedals(
@@ -337,7 +370,10 @@ export default async function CorridasMundoPage() {
             title="País líder"
             value={grouped[0] ? normalizeCountryDisplay(grouped[0].country) : "-"}
           />
-          <InfoCard title="Origem" value="Strava" />
+          <InfoCard
+            title="Eficiência média"
+            value={formatRaceEfficiency(stats.averageEfficiency)}
+          />
         </section>
 
         <section className="mb-8">
@@ -375,13 +411,14 @@ export default async function CorridasMundoPage() {
                       </p>
 
                       <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
-                        {item.count} corridas
+                        {item.count} {item.count === 1 ? "corrida" : "corridas"}
                       </span>
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      {item.races.map((race: Race) => {
+                      {item.races.map((race: Race, index) => {
                         const medal = topRaceMedals.get(race.id);
+                        const previous = item.races[index + 1];
 
                         return (
                           <div
@@ -406,6 +443,16 @@ export default async function CorridasMundoPage() {
                               {formatBRDate(race.date)} •{" "}
                               {race.distanceKm.toFixed(2)} km • {race.time} •{" "}
                               {formatPaceFromRace(race)}
+                            </p>
+
+                            <p className="mt-1 text-gray-500">
+                              FC{" "}
+                              {race.averageHeartrate
+                                ? `${race.averageHeartrate.toFixed(0)} bpm`
+                                : "-"}{" "}
+                              • Alt {race.elevationGain ?? 0} m • Eficiência{" "}
+                              {formatRaceEfficiency(race.efficiency)} •{" "}
+                              {getTrend(race.efficiency, previous?.efficiency)}
                             </p>
                           </div>
                         );

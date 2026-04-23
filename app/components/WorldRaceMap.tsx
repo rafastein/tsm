@@ -1,201 +1,122 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  ComposableMap,
-  Geographies,
-  Geography,
-} from "@vnedyalk0v/react19-simple-maps";
-import { feature } from "topojson-client";
+import { useEffect, useState } from "react";
+import { geoMercator, geoPath } from "d3-geo";
 
 type Props = {
   counts: Record<string, number>;
 };
 
-const geoUrl = "/maps/world-countries.json";
-const MAP_CENTER = [0, 20] as any;
-
-function normalizeText(value: string) {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function getFill(count: number) {
-  if (count >= 8) return "#9a3412";
-  if (count >= 4) return "#ea580c";
-  if (count >= 2) return "#fb923c";
-  if (count >= 1) return "#fed7aa";
-  return "#e5e7eb";
-}
-
-function isFeatureCollection(data: any) {
-  return data?.type === "FeatureCollection" && Array.isArray(data.features);
-}
-
-function isTopology(data: any) {
-  return data?.type === "Topology" && data.objects;
-}
-
 export default function WorldRaceMap({ counts }: Props) {
-  const [worldGeo, setWorldGeo] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const hasHighlights = useMemo(
-    () => Object.values(counts).some((v) => v > 0),
-    [counts]
-  );
+  const [geoData, setGeoData] = useState<any>(null);
 
   useEffect(() => {
-    let active = true;
-
     async function load() {
       try {
-        setError(null);
+        const res = await fetch("/maps/world.geojson");
 
-        const res = await fetch(geoUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error("Erro ao carregar geojson");
 
         const data = await res.json();
-
-        // GeoJSON
-        if (isFeatureCollection(data)) {
-          if (active) setWorldGeo(data);
-          return;
-        }
-
-        // TopoJSON
-        if (isTopology(data)) {
-          const key = Object.keys(data.objects)[0];
-          if (!key) throw new Error("TopoJSON inválido");
-
-          const converted = feature(data, data.objects[key]);
-          if (active) setWorldGeo(converted);
-          return;
-        }
-
-        throw new Error("Formato não suportado");
+        setGeoData(data);
       } catch (err) {
         console.error("Erro mapa mundo:", err);
-        if (active) {
-          setWorldGeo(null);
-          setError("Não foi possível carregar o mapa.");
-        }
       }
     }
 
     load();
-
-    return () => {
-      active = false;
-    };
   }, []);
 
-  return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-gray-900">
-        Mapa-múndi
-      </h2>
+  // 🔹 normaliza texto
+  function normalize(text: string) {
+    return text
+      ?.normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  }
 
-      <p className="mt-1 text-sm text-gray-500">
-        Visualização das corridas por país.
-      </p>
+  // 🔹 mapeia nomes do GeoJSON → nomes do sistema
+  function mapCountryName(name: string) {
+    const n = normalize(name);
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#fff,#f8fafc)] p-1">
-        <div className="w-full rounded-xl bg-white">
-          {error ? (
-            <div className="flex h-[500px] items-center justify-center text-sm text-gray-500">
-              {error}
-            </div>
-          ) : !worldGeo ? (
-            <div className="flex h-[500px] items-center justify-center text-sm text-gray-400">
-              Carregando mapa...
-            </div>
-          ) : (
-            <ComposableMap
-              projection="geoMercator"
-              projectionConfig={{
-                scale: 150,
-                center: MAP_CENTER,
-              }}
-              width={800}
-              height={400}
-              style={{ width: "100%", height: "auto" }}
-            >
-              <Geographies geography={worldGeo as any}>
-                {({ geographies }) =>
-                  geographies.map((geo: any, index: number) => {
-                    const rawName = String(
-                      geo?.properties?.name ??
-                      geo?.properties?.NAME ??
-                      ""
-                    );
+    const map: Record<string, string> = {
+      "united states": "estados unidos",
+      "united states of america": "estados unidos",
+      "usa": "estados unidos",
 
-                    const name = normalizeText(rawName);
-                    const count = counts[name] ?? 0;
+      "germany": "alemanha",
+      "deutschland": "alemanha",
 
-                    return (
-                      <Geography
-                        key={`${rawName}-${index}`}
-                        geography={geo}
-                        fill={getFill(count)}
-                        stroke="#f8fafc"
-                        strokeWidth={0.5}
-                        style={{
-                          default: { outline: "none" },
-                          hover: {
-                            outline: "none",
-                            fill: count > 0 ? "#f97316" : "#d1d5db",
-                          },
-                          pressed: { outline: "none" },
-                        }}
-                      >
-                        <title>
-                          {`${rawName}: ${count} corrida(s)`}
-                        </title>
-                      </Geography>
-                    );
-                  })
-                }
-              </Geographies>
-            </ComposableMap>
-          )}
-        </div>
+      "brazil": "brasil",
+
+      "netherlands": "paises baixos",
+      "holland": "paises baixos",
+
+      "portugal": "portugal",
+
+      "paraguay": "paraguai",
+      "republic of paraguay": "paraguai",
+      
+
+      "spain": "espanha",
+      "france": "franca",
+      "italy": "italia",
+      "argentina": "argentina",
+      "peru": "peru",
+      "japan": "japao",
+    };
+
+    return map[n] || n;
+  }
+
+  // 🔹 define cor baseada na quantidade
+  function getFillColor(name: string) {
+    const mapped = mapCountryName(name);
+
+    const count =
+      counts[mapped] ||
+      counts[normalize(name)] ||
+      0;
+
+    if (count === 0) return "#E5E7EB";
+    if (count === 1) return "#FED7AA";
+    if (count === 2) return "#FB923C";
+    if (count === 3) return "#EA580C";
+
+    return "#C2410C";
+  }
+
+  if (!geoData) {
+    return (
+      <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <p className="text-sm text-gray-500">Carregando mapa...</p>
       </div>
+    );
+  }
 
-      <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-600">
-        <Legend color="#e5e7eb" label="0" />
-        <Legend color="#fed7aa" label="1" />
-        <Legend color="#fb923c" label="2-3" />
-        <Legend color="#ea580c" label="4-7" />
-        <Legend color="#9a3412" label="8+" />
-      </div>
+  // 🔥 projeção automática (resolve escala/posição)
+  const projection = geoMercator().fitSize([1000, 800], geoData);
+  const pathGenerator = geoPath().projection(projection);
 
-      {!error && !hasHighlights && (
-        <p className="mt-3 text-sm text-gray-500">
-          Nenhum país com corridas ainda.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Legend({
-  color,
-  label,
-}: {
-  color: string;
-  label: string;
-}) {
   return (
-    <div className="flex items-center gap-2">
-      <span
-        className="h-3 w-3 rounded-sm border border-gray-200"
-        style={{ backgroundColor: color }}
-      />
-      <span>{label}</span>
+    <div className="rounded-3xl bg-white p-4 shadow-sm">
+      <svg viewBox="0 0 1000 540" className="w-full h-auto">
+        {geoData.features.map((feature: any, i: number) => {
+          const name =
+            feature.properties.name ||
+            feature.properties.ADMIN;
+
+          return (
+            <path
+              key={i}
+              d={pathGenerator(feature) || ""}
+              fill={getFillColor(name)}
+              stroke="#ffffff"
+              strokeWidth={0.5}
+            />
+          );
+        })}
+      </svg>
     </div>
   );
 }

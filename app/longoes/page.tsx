@@ -47,40 +47,65 @@ async function getActivities(): Promise<StravaActivity[]> {
       url.searchParams.set("after", String(STRAVA_AFTER_EPOCH));
 
       const res = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${accessToken}` },
         cache: "no-store",
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.warn("[LONGOES] falha ao buscar activities:", res.status, text);
-        break;
-      }
+      if (!res.ok) break;
 
       const pageActivities = (await res.json()) as StravaActivity[];
-
-      if (!Array.isArray(pageActivities) || pageActivities.length === 0) {
-        break;
-      }
+      if (!Array.isArray(pageActivities) || pageActivities.length === 0) break;
 
       allActivities.push(...pageActivities);
-
-      if (pageActivities.length < perPage) {
-        break;
-      }
+      if (pageActivities.length < perPage) break;
     }
 
     return allActivities;
-  } catch (error) {
-    console.warn("[LONGOES] erro ao buscar atividades:", error);
+  } catch {
     return [];
   }
 }
 
 function formatDate(dateString: string) {
   return formatBRDate(dateString);
+}
+
+function getEfficiencyTrend(current?: number | null, previous?: number | null) {
+  if (!current || !previous) {
+    return {
+      emoji: "➖",
+      label: "Sem base anterior",
+      detail: "Ainda não há longão anterior com eficiência para comparar.",
+      tone: "text-gray-500",
+    };
+  }
+
+  const diff = current - previous;
+
+  if (Math.abs(diff) < 1) {
+    return {
+      emoji: "➖",
+      label: "Estável",
+      detail: `Variação de ${diff >= 0 ? "+" : ""}${diff.toFixed(0)} ponto em relação ao longão anterior.`,
+      tone: "text-gray-600",
+    };
+  }
+
+  if (diff > 0) {
+    return {
+      emoji: "📈",
+      label: "Melhorou",
+      detail: `+${diff.toFixed(0)} pontos em relação ao longão anterior.`,
+      tone: "text-emerald-600",
+    };
+  }
+
+  return {
+    emoji: "📉",
+    label: "Piorou",
+    detail: `${diff.toFixed(0)} pontos em relação ao longão anterior.`,
+    tone: "text-red-600",
+  };
 }
 
 function InfoCard({ title, value }: { title: string; value: React.ReactNode }) {
@@ -92,10 +117,27 @@ function InfoCard({ title, value }: { title: string; value: React.ReactNode }) {
   );
 }
 
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white p-3">
+      <p className="text-sm text-gray-500">{label}</p>
+      <p className="mt-1 font-semibold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
 export default async function LongoesPage() {
   const activities = await getActivities();
   const longRuns = getLongRunsFromActivities(activities);
   const summary = getLongRunSummary(longRuns);
+
+  const lastLongRun = longRuns[0] ?? null;
+  const previousLongRun = longRuns[1] ?? null;
+
+  const efficiencyTrend = getEfficiencyTrend(
+    lastLongRun?.efficiency,
+    previousLongRun?.efficiency
+  );
 
   return (
     <main className="min-h-screen bg-gray-100 p-6 md:p-10">
@@ -121,14 +163,8 @@ export default async function LongoesPage() {
 
         <section className="mb-8 grid gap-4 md:grid-cols-5">
           <InfoCard title="Total de longões" value={String(summary.totalLongRuns)} />
-          <InfoCard
-            title="Maior longão"
-            value={`${summary.longestRunKm.toFixed(1)} km`}
-          />
-          <InfoCard
-            title="Pace médio"
-            value={formatLongRunPace(summary.averagePaceSecPerKm)}
-          />
+          <InfoCard title="Maior longão" value={`${summary.longestRunKm.toFixed(1)} km`} />
+          <InfoCard title="Pace médio" value={formatLongRunPace(summary.averagePaceSecPerKm)} />
           <InfoCard
             title="FC média"
             value={
@@ -169,13 +205,33 @@ export default async function LongoesPage() {
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900">
-              Melhor eficiência
+              Card de eficiência
             </h3>
-            <p className="mt-3 text-2xl font-bold text-gray-900">
-              {formatEfficiency(summary.bestEfficiency)}
+
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-3xl">{efficiencyTrend.emoji}</span>
+              <div>
+                <p className={`text-2xl font-bold ${efficiencyTrend.tone}`}>
+                  {efficiencyTrend.label}
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {efficiencyTrend.detail}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-500">
+              Último longão:{" "}
+              <span className="font-semibold text-gray-900">
+                {formatEfficiency(lastLongRun?.efficiency ?? null)}
+              </span>
             </p>
+
             <p className="mt-1 text-sm text-gray-500">
-              Métrica em km/h por bpm.
+              Longão anterior:{" "}
+              <span className="font-semibold text-gray-900">
+                {formatEfficiency(previousLongRun?.efficiency ?? null)}
+              </span>
             </p>
           </div>
 
@@ -197,7 +253,7 @@ export default async function LongoesPage() {
             Histórico de longões
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Lista cronológica com distância, tempo, pace, FC, elevação e eficiência.
+            Lista com distância, tempo, pace, FC, elevação, eficiência e comparação com o longão anterior.
           </p>
 
           {longRuns.length === 0 ? (
@@ -206,68 +262,68 @@ export default async function LongoesPage() {
             </p>
           ) : (
             <div className="mt-5 space-y-3">
-              {longRuns.map((run) => (
-                <div
-                  key={run.id}
-                  className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {run.name}
-                      </p>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {formatDate(run.date)} • {run.city || "Não identificado"}
-                        {run.state ? `, ${run.state}` : ""}
-                      </p>
+              {longRuns.map((run, index) => {
+                const previous = longRuns[index + 1];
+                const trend = getEfficiencyTrend(run.efficiency, previous?.efficiency);
+
+                return (
+                  <div
+                    key={run.id}
+                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {run.name}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {formatDate(run.date)} • {run.city || "Não identificado"}
+                          {run.state ? `, ${run.state}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
+                        {run.distanceKm.toFixed(2)} km
+                      </div>
                     </div>
 
-                    <div className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
-                      {run.distanceKm.toFixed(2)} km
+                    <div className="mt-4 grid gap-3 md:grid-cols-6">
+                      <MetricCard
+                        label="Tempo"
+                        value={formatLongRunDuration(run.movingTimeSec)}
+                      />
+                      <MetricCard
+                        label="Pace"
+                        value={formatLongRunPace(run.paceSecPerKm)}
+                      />
+                      <MetricCard
+                        label="FC média"
+                        value={
+                          run.averageHeartrate
+                            ? `${run.averageHeartrate.toFixed(0)} bpm`
+                            : "-"
+                        }
+                      />
+                      <MetricCard
+                        label="Elevação"
+                        value={`${run.elevationGain.toFixed(0)} m`}
+                      />
+                      <MetricCard
+                        label="Eficiência"
+                        value={formatEfficiency(run.efficiency)}
+                      />
+                      <MetricCard
+                        label="Tendência"
+                        value={`${trend.emoji} ${trend.label}`}
+                      />
                     </div>
                   </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-5">
-                    <MetricCard
-                      label="Tempo"
-                      value={formatLongRunDuration(run.movingTimeSec)}
-                    />
-                    <MetricCard
-                      label="Pace"
-                      value={formatLongRunPace(run.paceSecPerKm)}
-                    />
-                    <MetricCard
-                      label="FC média"
-                      value={
-                        run.averageHeartrate
-                          ? `${run.averageHeartrate.toFixed(0)} bpm`
-                          : "-"
-                      }
-                    />
-                    <MetricCard
-                      label="Elevação"
-                      value={`${run.elevationGain.toFixed(0)} m`}
-                    />
-                    <MetricCard
-                      label="Eficiência"
-                      value={formatEfficiency(run.efficiency)}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
       </div>
     </main>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-white p-3">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 font-semibold text-gray-900">{value}</p>
-    </div>
   );
 }

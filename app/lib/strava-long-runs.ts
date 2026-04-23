@@ -28,7 +28,9 @@ export type LongRunEntry = {
   averageHeartrate: number | null;
   maxHeartrate: number | null;
   paceSecPerKm: number | null;
-  efficiency: number | null; // km/h por bpm
+  adjustedPaceSecPerKm: number | null;
+  elevationFactor: number;
+  efficiency: number | null; // velocidade ajustada por bpm
 };
 
 export type LongRunSummary = {
@@ -36,8 +38,10 @@ export type LongRunSummary = {
   longestRunKm: number;
   averageDistanceKm: number;
   averagePaceSecPerKm: number | null;
+  averageAdjustedPaceSecPerKm: number | null;
   averageHeartrate: number | null;
   averageElevationGain: number;
+  averageElevationFactor: number;
   averageEfficiency: number | null;
   bestEfficiency: number | null;
   lastLongRun: LongRunEntry | null;
@@ -72,9 +76,7 @@ export function formatLongRunPace(paceSecPerKm: number | null) {
   const min = Math.floor(paceSecPerKm / 60);
   const sec = Math.round(paceSecPerKm % 60);
 
-  if (sec === 60) {
-    return `${min + 1}:00/km`;
-  }
+  if (sec === 60) return `${min + 1}:00/km`;
 
   return `${min}:${String(sec).padStart(2, "0")}/km`;
 }
@@ -97,18 +99,41 @@ export function formatEfficiency(value: number | null) {
   return value.toFixed(3);
 }
 
+export function calculateElevationFactor(distanceKm: number, elevationGain: number) {
+  if (!distanceKm || distanceKm <= 0 || !elevationGain || elevationGain <= 0) {
+    return 1;
+  }
+
+  return 1 + elevationGain / (distanceKm * 100);
+}
+
+export function calculateAdjustedPace(
+  paceSecPerKm: number | null,
+  distanceKm: number,
+  elevationGain: number
+) {
+  if (!paceSecPerKm || !Number.isFinite(paceSecPerKm)) return null;
+
+  const elevationFactor = calculateElevationFactor(distanceKm, elevationGain);
+  return paceSecPerKm / elevationFactor;
+}
+
 export function calculateEfficiency(
   distanceKm: number,
   movingTimeSec: number,
-  averageHeartrate: number | null
+  averageHeartrate: number | null,
+  elevationGain = 0
 ) {
   if (!averageHeartrate || averageHeartrate <= 0) return null;
   if (!distanceKm || distanceKm <= 0 || !movingTimeSec || movingTimeSec <= 0) {
     return null;
   }
 
-  const speedKmh = distanceKm / (movingTimeSec / 3600);
-  return speedKmh / averageHeartrate;
+  const rawSpeedKmh = distanceKm / (movingTimeSec / 3600);
+  const elevationFactor = calculateElevationFactor(distanceKm, elevationGain);
+  const adjustedSpeedKmh = rawSpeedKmh * elevationFactor;
+
+  return (adjustedSpeedKmh / averageHeartrate) * 1000;
 }
 
 export function getLongRunsFromActivities(
@@ -120,6 +145,8 @@ export function getLongRunsFromActivities(
     .map((activity) => {
       const distanceKm = safeNumber(activity.distance) / 1000;
       const movingTimeSec = safeNumber(activity.moving_time);
+      const elevationGain = safeNumber(activity.total_elevation_gain);
+
       const averageHeartrate =
         typeof activity.average_heartrate === "number" &&
         Number.isFinite(activity.average_heartrate)
@@ -135,6 +162,13 @@ export function getLongRunsFromActivities(
       const paceSecPerKm =
         distanceKm > 0 && movingTimeSec > 0 ? movingTimeSec / distanceKm : null;
 
+      const elevationFactor = calculateElevationFactor(distanceKm, elevationGain);
+      const adjustedPaceSecPerKm = calculateAdjustedPace(
+        paceSecPerKm,
+        distanceKm,
+        elevationGain
+      );
+
       return {
         id: activity.id,
         name: activity.name ?? "Longão",
@@ -143,14 +177,17 @@ export function getLongRunsFromActivities(
         state: String(activity.location_state ?? ""),
         distanceKm,
         movingTimeSec,
-        elevationGain: safeNumber(activity.total_elevation_gain),
+        elevationGain,
         averageHeartrate,
         maxHeartrate,
         paceSecPerKm,
+        adjustedPaceSecPerKm,
+        elevationFactor,
         efficiency: calculateEfficiency(
           distanceKm,
           movingTimeSec,
-          averageHeartrate
+          averageHeartrate,
+          elevationGain
         ),
       };
     })
@@ -164,7 +201,8 @@ function average(numbers: number[]) {
 
 function averageNullable(numbers: Array<number | null>) {
   const valid = numbers.filter(
-    (value): value is number => typeof value === "number" && Number.isFinite(value)
+    (value): value is number =>
+      typeof value === "number" && Number.isFinite(value)
   );
 
   if (valid.length === 0) return null;
@@ -178,8 +216,10 @@ export function getLongRunSummary(longRuns: LongRunEntry[]): LongRunSummary {
       longestRunKm: 0,
       averageDistanceKm: 0,
       averagePaceSecPerKm: null,
+      averageAdjustedPaceSecPerKm: null,
       averageHeartrate: null,
       averageElevationGain: 0,
+      averageElevationFactor: 1,
       averageEfficiency: null,
       bestEfficiency: null,
       lastLongRun: null,
@@ -188,18 +228,31 @@ export function getLongRunSummary(longRuns: LongRunEntry[]): LongRunSummary {
 
   const longestRunKm = Math.max(...longRuns.map((run) => run.distanceKm));
   const averageDistanceKm = average(longRuns.map((run) => run.distanceKm));
+
   const averagePaceSecPerKm = averageNullable(
     longRuns.map((run) => run.paceSecPerKm)
   );
+
+  const averageAdjustedPaceSecPerKm = averageNullable(
+    longRuns.map((run) => run.adjustedPaceSecPerKm)
+  );
+
   const averageHeartrate = averageNullable(
     longRuns.map((run) => run.averageHeartrate)
   );
+
   const averageElevationGain = average(
     longRuns.map((run) => run.elevationGain)
   );
+
+  const averageElevationFactor = average(
+    longRuns.map((run) => run.elevationFactor)
+  );
+
   const averageEfficiency = averageNullable(
     longRuns.map((run) => run.efficiency)
   );
+
   const bestEfficiency = Math.max(
     ...longRuns.map((run) => run.efficiency ?? 0)
   );
@@ -209,8 +262,10 @@ export function getLongRunSummary(longRuns: LongRunEntry[]): LongRunSummary {
     longestRunKm,
     averageDistanceKm,
     averagePaceSecPerKm,
+    averageAdjustedPaceSecPerKm,
     averageHeartrate,
     averageElevationGain,
+    averageElevationFactor,
     averageEfficiency,
     bestEfficiency: bestEfficiency > 0 ? bestEfficiency : null,
     lastLongRun: longRuns[0] ?? null,

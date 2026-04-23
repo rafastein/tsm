@@ -11,6 +11,8 @@ export type StravaRaceActivity = {
   moving_time: number;
   elapsed_time: number;
   total_elevation_gain: number;
+  average_heartrate?: number | null;
+  max_heartrate?: number | null;
   start_date: string;
   start_date_local: string;
   timezone?: string;
@@ -32,6 +34,12 @@ export type RaceLikeEntry = {
   distanceKm: number;
   time: string;
   elevationGain: number;
+  averageHeartrate: number | null;
+  maxHeartrate: number | null;
+  paceSecPerKm: number | null;
+  adjustedPaceSecPerKm: number | null;
+  elevationFactor: number;
+  efficiency: number | null;
   isOfficialRace: boolean;
 };
 
@@ -96,6 +104,10 @@ function normalizeText(value: string) {
     .toLowerCase();
 }
 
+function safeNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 function formatDuration(seconds: number) {
   const total = Math.max(0, Math.round(seconds));
   const h = Math.floor(total / 3600);
@@ -107,6 +119,62 @@ function formatDuration(seconds: number) {
   }
 
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export function formatRacePace(paceSecPerKm: number | null) {
+  if (!paceSecPerKm || !Number.isFinite(paceSecPerKm)) return "-";
+
+  const min = Math.floor(paceSecPerKm / 60);
+  const sec = Math.round(paceSecPerKm % 60);
+
+  if (sec === 60) return `${min + 1}:00/km`;
+
+  return `${min}:${String(sec).padStart(2, "0")}/km`;
+}
+
+export function formatRaceEfficiency(value: number | null) {
+  if (!value || !Number.isFinite(value)) return "-";
+  return value.toFixed(0);
+}
+
+export function calculateRaceElevationFactor(
+  distanceKm: number,
+  elevationGain: number
+) {
+  if (!distanceKm || distanceKm <= 0 || !elevationGain || elevationGain <= 0) {
+    return 1;
+  }
+
+  return 1 + elevationGain / (distanceKm * 100);
+}
+
+export function calculateRaceAdjustedPace(
+  paceSecPerKm: number | null,
+  distanceKm: number,
+  elevationGain: number
+) {
+  if (!paceSecPerKm || !Number.isFinite(paceSecPerKm)) return null;
+
+  const elevationFactor = calculateRaceElevationFactor(distanceKm, elevationGain);
+  return paceSecPerKm / elevationFactor;
+}
+
+export function calculateRaceEfficiency(
+  distanceKm: number,
+  movingTimeSec: number,
+  averageHeartrate: number | null,
+  elevationGain = 0
+) {
+  if (!averageHeartrate || averageHeartrate <= 0) return null;
+  if (!distanceKm || distanceKm <= 0 || !movingTimeSec || movingTimeSec <= 0) {
+    return null;
+  }
+
+  const rawSpeedKmh = distanceKm / (movingTimeSec / 3600);
+  const elevationFactor = calculateRaceElevationFactor(distanceKm, elevationGain);
+  const adjustedSpeedKmh = rawSpeedKmh * elevationFactor;
+
+  return (adjustedSpeedKmh / averageHeartrate) * 1000;
 }
 
 function cleanState(value?: string | null) {
@@ -437,6 +505,45 @@ export async function getRaceLikeActivitiesFromStrava(): Promise<RaceLikeEntry[]
         activity.timezone
       );
 
+      const distanceKm = safeNumber(activity.distance) / 1000;
+      const movingTimeSec = safeNumber(activity.moving_time);
+      const elevationGain = Math.round(
+        safeNumber(activity.total_elevation_gain)
+      );
+
+      const averageHeartrate =
+        typeof activity.average_heartrate === "number" &&
+        Number.isFinite(activity.average_heartrate)
+          ? activity.average_heartrate
+          : null;
+
+      const maxHeartrate =
+        typeof activity.max_heartrate === "number" &&
+        Number.isFinite(activity.max_heartrate)
+          ? activity.max_heartrate
+          : null;
+
+      const paceSecPerKm =
+        distanceKm > 0 && movingTimeSec > 0 ? movingTimeSec / distanceKm : null;
+
+      const adjustedPaceSecPerKm = calculateRaceAdjustedPace(
+        paceSecPerKm,
+        distanceKm,
+        elevationGain
+      );
+
+      const elevationFactor = calculateRaceElevationFactor(
+        distanceKm,
+        elevationGain
+      );
+
+      const efficiency = calculateRaceEfficiency(
+        distanceKm,
+        movingTimeSec,
+        averageHeartrate,
+        elevationGain
+      );
+
       return {
         id: `strava-${activity.id}`,
         source: "strava" as const,
@@ -446,9 +553,15 @@ export async function getRaceLikeActivitiesFromStrava(): Promise<RaceLikeEntry[]
         city,
         state,
         country,
-        distanceKm: Number((activity.distance / 1000).toFixed(2)),
+        distanceKm: Number(distanceKm.toFixed(2)),
         time: formatDuration(activity.moving_time),
-        elevationGain: Math.round(activity.total_elevation_gain || 0),
+        elevationGain,
+        averageHeartrate,
+        maxHeartrate,
+        paceSecPerKm,
+        adjustedPaceSecPerKm,
+        elevationFactor,
+        efficiency,
         isOfficialRace: true,
       };
     })
@@ -506,10 +619,27 @@ export function getStravaRaceStats(list: RaceLikeEntry[]) {
       .map((race) => race.state)
   );
 
+  const efficiencies = list
+    .map((race) => race.efficiency)
+    .filter(
+      (value): value is number =>
+        typeof value === "number" && Number.isFinite(value)
+    );
+
+  const bestEfficiency =
+    efficiencies.length > 0 ? Math.max(...efficiencies) : null;
+
+  const averageEfficiency =
+    efficiencies.length > 0
+      ? efficiencies.reduce((sum, value) => sum + value, 0) / efficiencies.length
+      : null;
+
   return {
     totalRaces: list.length,
     countriesCount: countries.size,
     statesCount: brazilStates.size,
+    averageEfficiency,
+    bestEfficiency,
   };
 }
 
@@ -525,12 +655,64 @@ export function getBrazilStateCountsFromStrava(list: RaceLikeEntry[]) {
   return counts;
 }
 
+export function normalizeCountryForMap(country: string) {
+  const normalized = normalizeText(country);
+
+  if (normalized.includes("paraguay") || normalized.includes("paraguai")) {
+    return "paraguai";
+  }
+
+  if (normalized.includes("brazil") || normalized.includes("brasil")) {
+    return "brasil";
+  }
+
+  if (normalized.includes("germany") || normalized.includes("alemanha") || normalized.includes("deutschland")) {
+    return "alemanha";
+  }
+
+  if (normalized.includes("portugal")) {
+    return "portugal";
+  }
+
+  if (normalized.includes("peru")) {
+    return "peru";
+  }
+
+  if (normalized.includes("argentina")) {
+    return "argentina";
+  }
+
+  if (normalized.includes("japan") || normalized.includes("japao")) {
+    return "japao";
+  }
+
+  if (
+    normalized.includes("united states") ||
+    normalized.includes("estados unidos") ||
+    normalized === "usa" ||
+    normalized === "eua"
+  ) {
+    return "estados unidos";
+  }
+
+  if (
+    normalized.includes("netherlands") ||
+    normalized.includes("paises baixos") ||
+    normalized.includes("holanda")
+  ) {
+    return "paises baixos";
+  }
+
+  return normalized;
+}
+
 export function getCountryCountsFromStrava(list: RaceLikeEntry[]) {
   const grouped = groupStravaRacesByCountry(list);
   const counts: Record<string, number> = {};
 
   grouped.forEach((item) => {
-    counts[normalizeText(item.country)] = item.count;
+    const key = normalizeCountryForMap(item.country);
+    counts[key] = item.count;
   });
 
   return counts;
