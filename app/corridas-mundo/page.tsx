@@ -11,6 +11,17 @@ import {
 
 const HALF_MARATHON_KM = 21;
 
+type Race = {
+  id: number | string;
+  name: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  date: string;
+  distanceKm: number;
+  time: string;
+};
+
 function normalizeText(value: string) {
   return String(value ?? "")
     .normalize("NFD")
@@ -22,24 +33,22 @@ function normalizeText(value: string) {
 function normalizeCountryDisplay(country: string) {
   const normalized = normalizeText(country);
 
-  if (
-    normalized.includes("paraguay") ||
-    normalized.includes("paraguai")
-  ) {
+  if (normalized.includes("paraguay") || normalized.includes("paraguai")) {
     return "Paraguai";
   }
 
-  if (
-    normalized === "deutschland" ||
-    normalized === "germany"
-  ) {
+  if (normalized === "deutschland" || normalized === "germany") {
     return "Alemanha";
   }
 
   if (normalized === "brazil") return "Brasil";
   if (normalized === "japan") return "Japão";
-  if (normalized === "united states") return "Estados Unidos";
-  if (normalized === "united states of america") return "Estados Unidos";
+  if (
+    normalized === "united states" ||
+    normalized === "united states of america"
+  ) {
+    return "Estados Unidos";
+  }
   if (normalized === "netherlands" || normalized === "holanda") {
     return "Países Baixos";
   }
@@ -62,10 +71,7 @@ function getCountryCode(country: string) {
   if (normalized === "peru") return "pe";
   if (normalized === "argentina") return "ar";
 
-  if (
-    normalized.includes("paraguay") ||
-    normalized.includes("paraguai")
-  ) {
+  if (normalized.includes("paraguay") || normalized.includes("paraguai")) {
     return "py";
   }
 
@@ -105,7 +111,11 @@ function getCountryCode(country: string) {
   }
 
   if (normalized === "espanha" || normalized === "spain") return "es";
-  if (normalized === "italia" || normalized === "itália" || normalized === "italy") {
+  if (
+    normalized === "italia" ||
+    normalized === "itália" ||
+    normalized === "italy"
+  ) {
     return "it";
   }
 
@@ -122,14 +132,44 @@ function getCountryCode(country: string) {
   if (normalized === "canada" || normalized === "canadá") return "ca";
   if (normalized === "australia" || normalized === "austrália") return "au";
   if (normalized === "irlanda" || normalized === "ireland") return "ie";
-  if (normalized === "suica" || normalized === "suíça" || normalized === "switzerland") return "ch";
+  if (
+    normalized === "suica" ||
+    normalized === "suíça" ||
+    normalized === "switzerland"
+  ) {
+    return "ch";
+  }
   if (normalized === "austria" || normalized === "áustria") return "at";
-  if (normalized === "belgica" || normalized === "bélgica" || normalized === "belgium") return "be";
+  if (
+    normalized === "belgica" ||
+    normalized === "bélgica" ||
+    normalized === "belgium"
+  ) {
+    return "be";
+  }
   if (normalized === "dinamarca" || normalized === "denmark") return "dk";
-  if (normalized === "suecia" || normalized === "suécia" || normalized === "sweden") return "se";
+  if (
+    normalized === "suecia" ||
+    normalized === "suécia" ||
+    normalized === "sweden"
+  ) {
+    return "se";
+  }
   if (normalized === "noruega" || normalized === "norway") return "no";
-  if (normalized === "finlandia" || normalized === "finlândia" || normalized === "finland") return "fi";
-  if (normalized === "polonia" || normalized === "polônia" || normalized === "poland") return "pl";
+  if (
+    normalized === "finlandia" ||
+    normalized === "finlândia" ||
+    normalized === "finland"
+  ) {
+    return "fi";
+  }
+  if (
+    normalized === "polonia" ||
+    normalized === "polônia" ||
+    normalized === "poland"
+  ) {
+    return "pl";
+  }
   if (
     normalized === "tchequia" ||
     normalized === "tchéquia" ||
@@ -140,7 +180,13 @@ function getCountryCode(country: string) {
     return "cz";
   }
   if (normalized === "hungria" || normalized === "hungary") return "hu";
-  if (normalized === "grecia" || normalized === "grécia" || normalized === "greece") return "gr";
+  if (
+    normalized === "grecia" ||
+    normalized === "grécia" ||
+    normalized === "greece"
+  ) {
+    return "gr";
+  }
   if (normalized === "turquia" || normalized === "turkey") return "tr";
   if (
     normalized === "africa do sul" ||
@@ -204,6 +250,22 @@ function parseTimeToSeconds(time: string) {
   }
 
   return Number.POSITIVE_INFINITY;
+}
+
+function formatPaceFromRace(race: Race) {
+  const totalSeconds = parseTimeToSeconds(race.time);
+
+  if (!Number.isFinite(totalSeconds) || !race.distanceKm) return "-";
+
+  const paceSeconds = totalSeconds / race.distanceKm;
+  const min = Math.floor(paceSeconds / 60);
+  const sec = Math.round(paceSeconds % 60);
+
+  if (sec === 60) {
+    return `${min + 1}:00/km`;
+  }
+
+  return `${min}:${String(sec).padStart(2, "0")}/km`;
 }
 
 function getTopRaceMedals(
@@ -317,7 +379,7 @@ export default async function CorridasMundoPage() {
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      {item.races.map((race) => {
+                      {item.races.map((race: Race) => {
                         const medal = topRaceMedals.get(race.id);
 
                         return (
@@ -341,7 +403,8 @@ export default async function CorridasMundoPage() {
                               {race.city || "Não identificado"}
                               {race.state ? `, ${race.state}` : ""} •{" "}
                               {new Date(race.date).toLocaleDateString("pt-BR")} •{" "}
-                              {race.distanceKm.toFixed(2)} km • {race.time}
+                              {race.distanceKm.toFixed(2)} km • {race.time} •{" "}
+                              {formatPaceFromRace(race)}
                             </p>
                           </div>
                         );
