@@ -4,25 +4,37 @@ import Link from "next/link";
 import ActivitiesPanel from "./components/ActivitiesPanel";
 import WeeklyComparisonChart from "./components/WeeklyComparisonChart";
 import {
-  getSisrunData,
+  buildWeeklyComparison,
   getCurrentWeek,
+  getCurrentWeekLongestRunKm,
+  getCurrentWeekStravaKm,
+  getSisrunData,
   getTodaySisrunRow,
   getTodayStravaKm,
-  getCurrentWeekStravaKm,
-  getCurrentWeekLongestRunKm,
-  buildWeeklyComparison,
   type SisrunWeek,
 } from "./lib/sisrun-utils";
 import { getValidStravaAccessToken } from "./lib/strava-auth";
+import {
+  formatEfficiency,
+  formatLongRunPace,
+  getLongRunSummary,
+  getLongRunsFromActivities,
+} from "./lib/strava-long-runs";
 
 type StravaActivity = {
   id: number;
   name: string;
   distance: number;
   moving_time: number;
+  elapsed_time?: number;
   total_elevation_gain: number;
+  average_heartrate?: number;
+  max_heartrate?: number;
   type: string;
+  start_date: string;
   start_date_local: string;
+  location_city?: string | null;
+  location_state?: string | null;
 };
 
 type Athlete = {
@@ -45,7 +57,10 @@ const YEAR_END_EPOCH = Math.floor(
 async function getActivities(): Promise<StravaActivity[]> {
   try {
     const accessToken = await getValidStravaAccessToken();
-    if (!accessToken) return [];
+    if (!accessToken) {
+      console.warn("[HOME] sem access token para atividades");
+      return [];
+    }
 
     const allActivities: StravaActivity[] = [];
     const perPage = 200;
@@ -66,7 +81,8 @@ async function getActivities(): Promise<StravaActivity[]> {
       });
 
       if (!res.ok) {
-        console.warn("Falha Strava activities:", res.status);
+        const text = await res.text();
+        console.warn("[HOME] falha ao buscar activities:", res.status, text);
         break;
       }
 
@@ -83,6 +99,7 @@ async function getActivities(): Promise<StravaActivity[]> {
       }
     }
 
+    console.log("[HOME] atividades carregadas:", allActivities.length);
     return allActivities;
   } catch (error) {
     console.warn("Erro ao buscar atividades:", error);
@@ -239,6 +256,8 @@ export default async function Home() {
     plannedWeekKm > 0 ? Math.min((currentWeekKm / plannedWeekKm) * 100, 100) : 0;
 
   const weeklyComparison = buildWeeklyComparison(sisrunData, activities, 6);
+  const longRuns = getLongRunsFromActivities(activities);
+  const longRunSummary = getLongRunSummary(longRuns);
 
   const connected = Boolean(athlete) || activities.length > 0;
 
@@ -379,7 +398,7 @@ export default async function Home() {
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <h3 className="mb-2 font-semibold">Resumo geral {YEAR_SUMMARY}</h3>
+            <h3 className="mb-2 font-semibold">Resumo geral 2026</h3>
             <p className="text-gray-600">
               Consolidado de todos os treinos do ano no Strava.
             </p>
@@ -398,6 +417,65 @@ export default async function Home() {
           </div>
         </section>
 
+        <section className="mb-8 grid gap-4 md:grid-cols-[1.4fr_.6fr]">
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <h3 className="mb-2 font-semibold">Eficiência nos longões</h3>
+
+            {longRunSummary.totalLongRuns > 0 ? (
+              <>
+                <p className="text-sm text-gray-500">
+                  Eficiência média:{" "}
+                  <span className="font-semibold text-gray-900">
+                    {formatEfficiency(longRunSummary.averageEfficiency)}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Pace médio dos longões:{" "}
+                  <span className="font-semibold text-gray-900">
+                    {formatLongRunPace(longRunSummary.averagePaceSecPerKm)}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  FC média dos longões:{" "}
+                  <span className="font-semibold text-gray-900">
+                    {longRunSummary.averageHeartrate
+                      ? `${longRunSummary.averageHeartrate.toFixed(0)} bpm`
+                      : "-"}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Melhor eficiência:{" "}
+                  <span className="font-semibold text-gray-900">
+                    {formatEfficiency(longRunSummary.bestEfficiency)}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Nenhum longão encontrado ainda. Renomeie as atividades como “Longão”.
+              </p>
+            )}
+          </div>
+
+          <Link
+            href="/longoes"
+            className="rounded-3xl bg-white p-6 shadow-sm transition hover:bg-gray-50"
+          >
+            <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
+              Treinos
+            </p>
+            <h3 className="mt-2 text-2xl font-bold text-gray-900">
+              Página de longões
+            </h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Veja evolução, eficiência, FC e histórico completo dos longões.
+            </p>
+          </Link>
+        </section>
+
         <section className="mb-8 grid gap-4 md:grid-cols-2">
           <Link
             href="/corridas-brasil"
@@ -406,16 +484,15 @@ export default async function Home() {
             <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
               Mapas
             </p>
-          <h3 className="mt-2 flex items-center gap-2 text-2xl font-bold text-gray-900">
-            <span>Corridas pelo Brasil</span>
-            <img
-              src="https://flagcdn.com/w40/br.png"
-              alt="Bandeira do Brasil"
-              className="h-5 w-7 rounded-[2px] object-cover shadow-sm"
-              loading="lazy"
-            />
-  
-</h3>
+            <h3 className="mt-2 flex items-center gap-2 text-2xl font-bold text-gray-900">
+              <img
+                src="https://flagcdn.com/w40/br.png"
+                alt="Bandeira do Brasil"
+                className="h-5 w-7 rounded-[2px] object-cover shadow-sm"
+                loading="lazy"
+              />
+              <span>Corridas pelo Brasil</span>
+            </h3>
             <p className="mt-2 text-sm text-gray-500">
               Veja o mapa do Brasil com a quantidade de corridas por estado.
             </p>
@@ -428,8 +505,9 @@ export default async function Home() {
             <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
               Mapas
             </p>
-            <h3 className="mt-2 text-2xl font-bold text-gray-900">
-              Corridas pelo mundo 🌍
+            <h3 className="mt-2 flex items-center gap-2 text-2xl font-bold text-gray-900">
+              <span>🌍</span>
+              <span>Corridas pelo mundo</span>
             </h3>
             <p className="mt-2 text-sm text-gray-500">
               Explore o mapa-múndi com a quantidade de corridas por país.
