@@ -451,7 +451,7 @@ export default async function CorridasMundoPage() {
                                 ? `${race.averageHeartrate.toFixed(0)} bpm`
                                 : "-"}{" "}
                               • Alt {race.elevationGain ?? 0} m • Eficiência{" "}
-                              {formatRaceEfficiency(race.efficiency)} •{" "}
+                              {formatRaceEfficiency(race.efficiency ?? null)} •{" "}
                               {getTrend(race.efficiency, previous?.efficiency)}
                             </p>
                           </div>

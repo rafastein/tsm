@@ -255,7 +255,7 @@ export default async function CorridasBrasilPage() {
                               ? `${race.averageHeartrate.toFixed(0)} bpm`
                               : "-"}{" "}
                             • Alt {race.elevationGain ?? 0} m • Eficiência{" "}
-                            {formatRaceEfficiency(race.efficiency)} •{" "}
+                            {formatRaceEfficiency(race.efficiency ?? null)} •{" "}
                             {getTrend(race.efficiency, previous?.efficiency)}
                           </p>
                         </div>
@@ -322,7 +322,7 @@ function TopDistanceCard({
                 </p>
 
                 <p className="mt-1 text-gray-500">
-                  Eficiência {formatRaceEfficiency(race.efficiency)}
+                  Eficiência {formatRaceEfficiency(race.efficiency ?? null)}
                 </p>
               </div>
             );
