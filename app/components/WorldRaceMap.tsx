@@ -56,9 +56,9 @@ export default function WorldRaceMap({ counts }: Props) {
 
       "paraguay": "paraguai",
       "republic of paraguay": "paraguai",
-      
-
+      "bolívia": "bolivia",
       "spain": "espanha",
+
       "france": "franca",
       "italy": "italia",
       "argentina": "argentina",
@@ -88,7 +88,7 @@ export default function WorldRaceMap({ counts }: Props) {
 
   if (!geoData) {
     return (
-      <div className="rounded-3xl bg-white p-6 shadow-sm">
+      <div className="rounded-3xl app-card p-6">
         <p className="text-sm text-gray-500">Carregando mapa...</p>
       </div>
     );
@@ -99,7 +99,7 @@ export default function WorldRaceMap({ counts }: Props) {
   const pathGenerator = geoPath().projection(projection);
 
   return (
-    <div className="rounded-3xl bg-white p-4 shadow-sm">
+    <div className="rounded-3xl app-card p-4">
       <svg viewBox="0 0 1000 540" className="w-full h-auto">
         {geoData.features.map((feature: any, i: number) => {
           const name =

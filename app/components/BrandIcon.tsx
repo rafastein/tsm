@@ -49,7 +49,7 @@ export default function BrandIcon({ brand, className = "h-6 w-6" }: Props) {
 
   return (
     <div
-      className={`${className} flex items-center justify-center rounded bg-gray-200 text-xs font-bold text-gray-700`}
+      className={`${className} flex items-center justify-center rounded bg-[#e0007a]/10 text-xs font-bold text-gray-700`}
     >
       {brand?.slice(0, 2).toUpperCase()}
     </div>

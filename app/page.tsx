@@ -143,7 +143,7 @@ function buildAlerts(params: {
     alerts.push({
       title: "SisRUN ausente",
       text: "Carregue uma planilha para comparar planejamento e execução.",
-      tone: "bg-gray-50 text-gray-700",
+      tone: "bg-white/55 text-gray-700",
     });
     return alerts;
   }
@@ -191,7 +191,7 @@ function buildAlerts(params: {
 
 function Card({ title, value }: { title: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
+    <div className="app-card p-4">
       <p className="text-sm text-gray-500">{title}</p>
       <h2 className="mt-2 text-2xl font-bold text-gray-900">{value}</h2>
     </div>
@@ -258,9 +258,9 @@ export default async function Home() {
   });
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6">
+    <main className="min-h-screen app-page-bg p-6">
       <div className="mx-auto max-w-6xl">
-        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
+        <section className="mb-8 rounded-3xl app-card p-6">
           <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
             <div className="flex items-center gap-4">
               {athlete?.profile_medium ? (
@@ -274,13 +274,13 @@ export default async function Home() {
                   className="h-20 w-20 rounded-full object-cover"
                 />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-orange-200 text-xl font-bold">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#e0007a]/15 text-xl font-bold text-[#8a1452]">
                   {athlete?.firstname?.[0] ?? "A"}
                 </div>
               )}
 
               <div>
-                <p className="text-sm font-medium text-orange-600">
+                <p className="text-sm font-medium text-[#e0007a]">
                   Strava Dashboard
                 </p>
                 <h1 className="text-3xl font-bold">
@@ -306,13 +306,13 @@ export default async function Home() {
             <div className="grid gap-4 md:grid-cols-2">
               <Link
                 href="/buenos-aires"
-                className="group rounded-3xl bg-gradient-to-r from-orange-500 to-red-500 p-5 text-white shadow-sm transition hover:scale-[1.01]"
+                className="group rounded-3xl bg-gradient-to-r from-[#d6bcc7] via-[#d86aa8] to-[#e0007a] p-5 text-white shadow-sm transition hover:scale-[1.01]"
               >
-                <p className="text-xs font-medium uppercase tracking-wide text-orange-100">
+                <p className="text-xs font-medium uppercase tracking-wide text-pink-50">
                   Road to Buenos Aires
                 </p>
-                <h2 className="mt-2 text-xl font-bold">Abrir modo maratona</h2>
-                <p className="mt-2 text-sm text-orange-50">
+                <h2 className="mt-2 text-xl font-bold">Abrir modo Sub2</h2>
+                <p className="mt-2 text-sm text-pink-50">
                   Acompanhe prontidão, ciclo, projeções e longões.
                 </p>
                 <p className="mt-4 text-sm font-semibold text-white/90 group-hover:text-white">
@@ -322,7 +322,7 @@ export default async function Home() {
 
               <Link
                 href="/sisrun"
-                className="rounded-3xl bg-white p-5 shadow-sm transition hover:bg-gray-50"
+                className="rounded-3xl app-card p-5 transition hover:bg-white/90"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
                   Planejamento
@@ -362,7 +362,7 @@ export default async function Home() {
         </section>
 
         <section className="mb-8 grid gap-4 md:grid-cols-2">
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="mb-2 font-semibold">Treino de hoje</h3>
 
             {todaySisrunRow ? (
@@ -376,8 +376,8 @@ export default async function Home() {
                 <p
                   className={`mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium ${
                     todayStatus === "Descanso"
-                      ? "bg-gray-100 text-gray-700"
-                      : "bg-orange-100 text-orange-700"
+                      ? "bg-[#e0007a]/10 text-gray-700"
+                      : "bg-[#e0007a]/10 text-[#b00060]"
                   }`}
                 >
                   {todayStatus}
@@ -388,7 +388,7 @@ export default async function Home() {
             )}
           </div>
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="mb-2 font-semibold">Resumo geral 2026</h3>
             <p className="text-gray-600">
               Consolidado de todos os treinos do ano no Strava.
@@ -409,7 +409,7 @@ export default async function Home() {
         </section>
 
         <section className="mb-8 grid gap-4 md:grid-cols-[1.4fr_.6fr]">
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="mb-2 font-semibold">Card de eficiência</h3>
 
             {longRunSummary.totalLongRuns > 0 ? (
@@ -459,9 +459,9 @@ export default async function Home() {
 
           <Link
             href="/longoes"
-            className="rounded-3xl bg-white p-6 shadow-sm transition hover:bg-gray-50"
+            className="rounded-3xl app-card p-6 transition hover:bg-white/55"
           >
-            <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#e0007a]">
               Treinos
             </p>
             <h3 className="mt-2 text-2xl font-bold text-gray-900">
@@ -476,9 +476,9 @@ export default async function Home() {
         <section className="mb-8 grid gap-4 md:grid-cols-3">
           <Link
             href="/corridas-brasil"
-            className="rounded-3xl bg-white p-6 shadow-sm transition hover:bg-gray-50"
+            className="rounded-3xl app-card p-6 transition hover:bg-white/55"
           >
-            <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#e0007a]">
               Mapas
             </p>
             <h3 className="mt-2 flex items-center gap-2 text-2xl font-bold text-gray-900">
@@ -497,9 +497,9 @@ export default async function Home() {
 
           <Link
             href="/corridas-mundo"
-            className="rounded-3xl bg-white p-6 shadow-sm transition hover:bg-gray-50"
+            className="rounded-3xl app-card p-6 transition hover:bg-white/55"
           >
-            <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#e0007a]">
               Mapas
             </p>
             <h3 className="mt-2 flex items-center gap-2 text-2xl font-bold text-gray-900">
@@ -513,9 +513,9 @@ export default async function Home() {
 
           <Link
             href="/equipamentos"
-            className="rounded-3xl bg-white p-6 shadow-sm transition hover:bg-gray-50"
+            className="rounded-3xl app-card p-6 transition hover:bg-white/55"
           >
-            <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#e0007a]">
               Strava
             </p>
             <h3 className="mt-2 text-2xl font-bold text-gray-900">
@@ -548,7 +548,7 @@ export default async function Home() {
         </section>
 
         <section className="mb-8 grid gap-4 md:grid-cols-2">
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="mb-2 font-semibold">Maior corrida recente</h3>
             {longest ? (
               <>
@@ -564,7 +564,7 @@ export default async function Home() {
             )}
           </div>
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="mb-2 font-semibold">Strava</h3>
             <p className="text-gray-600">Corridas registradas: {runs.length}</p>
             <p className="mt-1 text-sm text-gray-500">

@@ -126,7 +126,7 @@ export default function WeeklyComparisonChart({
   subtitle,
 }: Props) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
+    <div className="rounded-3xl app-card p-6">
       <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
 
       {subtitle ? <p className="mt-1 text-sm text-gray-500">{subtitle}</p> : null}
@@ -148,8 +148,8 @@ export default function WeeklyComparisonChart({
               key={item.label}
               className={`rounded-2xl border p-4 ${
                 currentWeek
-                  ? "border-orange-200 bg-orange-50/40"
-                  : "border-gray-200 bg-gray-50"
+                  ? "border-[#e0007a]/20 bg-[#e0007a]/10"
+                  : "border-pink-200/60 bg-white/55"
               }`}
             >
               <div className="flex items-start justify-between gap-4">
@@ -159,7 +159,7 @@ export default function WeeklyComparisonChart({
                   </p>
 
                   {currentWeek ? (
-                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                    <span className="rounded-full bg-[#e0007a]/10 px-2 py-0.5 text-xs font-semibold text-[#b00060]">
                       Atual
                     </span>
                   ) : null}
@@ -178,9 +178,9 @@ export default function WeeklyComparisonChart({
                   </span>
                 </div>
 
-                <div className="h-4 overflow-hidden rounded-full bg-gray-200">
+                <div className="h-4 overflow-hidden rounded-full bg-[#e0007a]/10">
                   <div
-                    className="h-full rounded-full bg-orange-500 transition-all"
+                    className="h-full rounded-full bg-gradient-to-r from-[#d86aa8] to-[#e0007a] transition-all"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>

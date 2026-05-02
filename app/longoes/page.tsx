@@ -111,7 +111,7 @@ function getEfficiencyTrend(current?: number | null, previous?: number | null) {
 
 function InfoCard({ title, value }: { title: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
+    <div className="rounded-3xl app-card p-6">
       <p className="text-sm text-gray-500">{title}</p>
       <h2 className="mt-2 text-2xl font-bold text-gray-900">{value}</h2>
     </div>
@@ -120,7 +120,7 @@ function InfoCard({ title, value }: { title: string; value: React.ReactNode }) {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white p-3">
+    <div className="rounded-xl bg-white/80 p-3 shadow-sm">
       <p className="text-sm text-gray-500">{label}</p>
       <p className="mt-1 font-semibold text-gray-900">{value}</p>
     </div>
@@ -141,11 +141,11 @@ export default async function LongoesPage() {
   );
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 md:p-10">
+    <main className="min-h-screen app-page-bg p-6 md:p-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-orange-600">Treinos</p>
+            <p className="text-sm font-medium text-[#e0007a]">Treinos</p>
             <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">
               Página de longões
             </h1>
@@ -156,7 +156,7 @@ export default async function LongoesPage() {
 
           <Link
             href="/"
-            className="rounded-full bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="rounded-full app-button px-5 py-3 text-sm font-medium"
           >
             Voltar ao dashboard
           </Link>
@@ -181,7 +181,7 @@ export default async function LongoesPage() {
         </section>
 
         <section className="mb-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="text-lg font-semibold text-gray-900">Último longão</h3>
             {summary.lastLongRun ? (
               <>
@@ -204,7 +204,7 @@ export default async function LongoesPage() {
             )}
           </div>
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="text-lg font-semibold text-gray-900">
               Card de eficiência
             </h3>
@@ -236,7 +236,7 @@ export default async function LongoesPage() {
             </p>
           </div>
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h3 className="text-lg font-semibold text-gray-900">
               Elevação média
             </h3>
@@ -249,7 +249,7 @@ export default async function LongoesPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm">
+        <section className="rounded-3xl app-card p-6">
           <h2 className="text-xl font-semibold text-gray-900">
             Histórico de longões
           </h2>
@@ -270,7 +270,7 @@ export default async function LongoesPage() {
                 return (
                   <div
                     key={run.id}
-                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                    className="rounded-2xl app-card-soft p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -283,7 +283,7 @@ export default async function LongoesPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
+                      <div className="rounded-full bg-[#e0007a]/10 px-3 py-1 text-sm font-semibold text-[#b00060]">
                         {run.distanceKm.toFixed(2)} km
                       </div>
                     </div>

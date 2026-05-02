@@ -124,7 +124,7 @@ function getMedalMeta(index: number) {
 
   return {
     label: "🥉 Bronze",
-    className: "border border-orange-200 bg-orange-100 text-orange-800",
+    className: "border border-[#e0007a]/20 bg-[#e0007a]/10 text-[#8a1452]",
   };
 }
 
@@ -142,11 +142,11 @@ export default async function CorridasBrasilPage() {
   const top5k = getTopRaces(races, isFiveK);
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 md:p-10">
+    <main className="min-h-screen app-page-bg p-6 md:p-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-orange-600">Corridas</p>
+            <p className="text-sm font-medium text-[#e0007a]">Corridas</p>
             <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">
               Corridas pelo Brasil
             </h1>
@@ -157,7 +157,7 @@ export default async function CorridasBrasilPage() {
 
           <Link
             href="/"
-            className="rounded-full bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="rounded-full app-button px-5 py-3 text-sm font-medium"
           >
             Voltar ao dashboard
           </Link>
@@ -179,7 +179,7 @@ export default async function CorridasBrasilPage() {
           />
         </section>
 
-        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
+        <section className="mb-8 rounded-3xl app-card p-6">
           <h2 className="text-xl font-semibold text-gray-900">
             Top 3 por distância
           </h2>
@@ -199,7 +199,7 @@ export default async function CorridasBrasilPage() {
           <BrazilRaceMap counts={counts} />
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm">
+        <section className="rounded-3xl app-card p-6">
           <h2 className="text-xl font-semibold text-gray-900">
             Ranking por estado
           </h2>
@@ -217,13 +217,13 @@ export default async function CorridasBrasilPage() {
               {grouped.map((item) => (
                 <div
                   key={item.state}
-                  className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                  className="rounded-2xl app-card-soft p-4"
                 >
                   <div className="flex items-center justify-between">
                     <p className="text-lg font-semibold text-gray-900">
                       {item.stateName}
                     </p>
-                    <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
+                    <span className="rounded-full bg-[#e0007a]/10 px-3 py-1 text-sm font-semibold text-[#b00060]">
                       {item.count} {item.count === 1 ? "corrida" : "corridas"}
                     </span>
                   </div>
@@ -235,7 +235,7 @@ export default async function CorridasBrasilPage() {
                       return (
                         <div
                           key={race.id}
-                          className="rounded-xl bg-white p-3 text-sm text-gray-700"
+                          className="rounded-xl bg-white/80 p-3 text-sm text-gray-700 shadow-sm"
                         >
                           <p className="font-medium text-gray-900">
                             {race.name}
@@ -280,7 +280,7 @@ function TopDistanceCard({
   races: Array<Race & { paceSeconds: number }>;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+    <div className="rounded-2xl app-card-soft p-4">
       <h3 className="text-base font-semibold text-gray-900">{title}</h3>
 
       {races.length === 0 ? (
@@ -296,7 +296,7 @@ function TopDistanceCard({
             return (
               <div
                 key={race.id}
-                className="rounded-xl bg-white p-3 text-sm text-gray-700"
+                className="rounded-xl bg-white/80 p-3 text-sm text-gray-700 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium text-gray-900">{race.name}</p>
@@ -335,7 +335,7 @@ function TopDistanceCard({
 
 function InfoCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
+    <div className="rounded-3xl app-card p-6">
       <p className="text-sm text-gray-500">{title}</p>
       <h2 className="mt-2 text-2xl font-bold text-gray-900">{value}</h2>
     </div>

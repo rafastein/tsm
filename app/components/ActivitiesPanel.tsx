@@ -66,7 +66,7 @@ export default function ActivitiesPanel({ activities }: Props) {
     .slice(0, 12);
 
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm">
+    <section className="rounded-3xl app-card p-6">
       <div className="mb-4">
         <h2 className="text-2xl font-bold text-gray-900">Atividades recentes</h2>
         <p className="mt-1 text-sm text-gray-500">
@@ -84,7 +84,7 @@ export default function ActivitiesPanel({ activities }: Props) {
             return (
               <div
                 key={activity.id}
-                className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                className="rounded-2xl app-card-soft p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -98,28 +98,28 @@ export default function ActivitiesPanel({ activities }: Props) {
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl bg-white p-3">
+                  <div className="rounded-xl bg-white/80 p-3 shadow-sm">
                     <p className="text-gray-500">Distância</p>
                     <p className="mt-1 font-semibold text-gray-900">
                       {formatDistance(activity.distance)}
                     </p>
                   </div>
 
-                  <div className="rounded-xl bg-white p-3">
+                  <div className="rounded-xl bg-white/80 p-3 shadow-sm">
                     <p className="text-gray-500">Tempo</p>
                     <p className="mt-1 font-semibold text-gray-900">
                       {formatDuration(activity.moving_time ?? activity.elapsed_time)}
                     </p>
                   </div>
 
-                  <div className="rounded-xl bg-white p-3">
+                  <div className="rounded-xl bg-white/80 p-3 shadow-sm">
                     <p className="text-gray-500">Pace</p>
                     <p className="mt-1 font-semibold text-gray-900">
                       {formatPace(activity.distance, activity.moving_time)}
                     </p>
                   </div>
 
-                  <div className="rounded-xl bg-white p-3">
+                  <div className="rounded-xl bg-white/80 p-3 shadow-sm">
                     <p className="text-gray-500">Elevação</p>
                     <p className="mt-1 font-semibold text-gray-900">
                       {Math.round(activity.total_elevation_gain ?? 0)} m

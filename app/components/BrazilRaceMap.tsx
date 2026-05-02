@@ -118,14 +118,14 @@ export default function BrazilRaceMap({ counts }: Props) {
   }, []);
 
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
+    <div className="rounded-3xl app-card p-6">
       <h2 className="text-xl font-semibold text-gray-900">Mapa do Brasil</h2>
 
       <p className="mt-1 text-sm text-gray-500">
         Visualização das corridas por estado.
       </p>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#fff,#f8fafc)] p-1">
+      <div className="mt-4 overflow-hidden rounded-2xl border border-pink-200/60 bg-[linear-gradient(180deg,#fff,#f8fafc)] p-1">
         <div className="w-full rounded-xl bg-white">
           {loadError ? (
             <div className="flex h-[540px] items-center justify-center text-sm text-gray-500">
@@ -219,7 +219,7 @@ function Legend({
   return (
     <div className="flex items-center gap-2">
       <span
-        className="h-3 w-3 rounded-sm border border-gray-200"
+        className="h-3 w-3 rounded-sm border border-pink-200/60"
         style={{ backgroundColor: color }}
       />
       <span>{label}</span>

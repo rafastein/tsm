@@ -241,6 +241,7 @@ function cleanCountry(value?: string | null, timezone?: string | null) {
     if (normalized === "peru") return "Peru";
     if (normalized === "argentina") return "Argentina";
     if (normalized === "paraguay" || normalized === "paraguai") return "Paraguai";
+    if (normalized === "bolívia" || normalized === "bolivia") return "Bolivia";
     if (normalized === "japan" || normalized === "japao") return "Japão";
     if (
       normalized === "united states" ||
@@ -298,7 +299,7 @@ export function isRaceLikeActivity(activity: StravaRaceActivity) {
   const name = activity.name?.trim();
   if (!name) return false;
 
-  return /^prova\b/i.test(name);
+  return name.endsWith("***") || /^prova\b/i.test(name);
 }
 
 function coordKey(lat: number, lon: number) {
@@ -430,7 +431,7 @@ async function getOrFetchGeocode(
 }
 
 function cleanDisplayedRaceName(name: string) {
-  return name.replace(/^prova\b[:\s-]*/i, "").trim();
+  return name.replace(/\*{3}$/, "").trim();
 }
 
 async function fetchAllStravaActivitiesSince2024(
@@ -660,6 +661,10 @@ export function normalizeCountryForMap(country: string) {
 
   if (normalized.includes("paraguay") || normalized.includes("paraguai")) {
     return "paraguai";
+  }
+
+  if (normalized.includes("bolívia") || normalized.includes("bolivia")) {
+    return "bolivia";
   }
 
   if (normalized.includes("brazil") || normalized.includes("brasil")) {

@@ -39,19 +39,19 @@ export default function ManualPredictionForm({ initialValue }: Props) {
   }
 
   return (
-    <div className="rounded-2xl bg-gray-50 p-4">
-      <p className="text-sm text-gray-500">Projeção do Strava (manual)</p>
+    <div className="rounded-2xl app-card-soft p-4">
+      <p className="text-sm text-gray-500">Projeção da meia no Strava (manual)</p>
 
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Ex: 03:49:00"
+        placeholder="Ex: 01:59:33"
         className="mt-3 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900"
       />
 
       <button
         onClick={handleSave}
-        className="mt-3 rounded-full bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+        className="mt-3 rounded-full bg-[#e0007a] px-4 py-2 text-sm font-medium text-white hover:bg-[#bf0068]"
       >
         Salvar previsão
       </button>

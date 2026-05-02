@@ -12,8 +12,6 @@ import {
   formatRaceEfficiency,
 } from "../lib/strava-races";
 
-const HALF_MARATHON_KM = 21;
-
 type Race = {
   id: number | string;
   name: string;
@@ -42,6 +40,10 @@ function normalizeCountryDisplay(country: string) {
 
   if (normalized.includes("paraguay") || normalized.includes("paraguai")) {
     return "Paraguai";
+  }
+
+  if (normalized.includes("bolívia") || normalized.includes("bolivia")) {
+    return "Bolivia";
   }
 
   if (normalized === "deutschland" || normalized === "germany") {
@@ -84,6 +86,10 @@ function getCountryCode(country: string) {
 
   if (normalized.includes("paraguay") || normalized.includes("paraguai")) {
     return "py";
+  }
+
+  if (normalized.includes("bolívia") || normalized.includes("bolivia")) {
+    return "bo";
   }
 
   if (
@@ -245,7 +251,7 @@ function CountryFlag({ country }: { country: string }) {
 
   if (!code) {
     return (
-      <span className="flex h-5 w-7 items-center justify-center rounded-sm bg-gray-200 text-[10px] font-bold text-gray-500">
+      <span className="flex h-5 w-7 items-center justify-center rounded-sm bg-[#e0007a]/10 text-[10px] font-bold text-gray-500">
         ?
       </span>
     );
@@ -331,7 +337,7 @@ function getTopRaceMedals(
 
 export default async function CorridasMundoPage() {
   const allRaces = await getRaceLikeActivitiesFromStrava();
-  const races = allRaces.filter((race) => race.distanceKm >= HALF_MARATHON_KM);
+  const races = allRaces;
 
   const grouped = groupStravaRacesByCountry(races);
   const stats = getStravaRaceStats(races);
@@ -339,29 +345,29 @@ export default async function CorridasMundoPage() {
   const topRaceMedals = getTopRaceMedals(races);
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 md:p-10">
+    <main className="min-h-screen bg-gradient-to-br from-[#f7eef3] via-[#f3d7e4] to-[#f6b4d2] p-6 md:p-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-orange-600">Corridas</p>
+            <p className="text-sm font-medium text-[#e0007a]">Corridas</p>
             <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">
               Corridas pelo mundo
             </h1>
             <p className="mt-2 text-sm text-gray-500">
-              Corridas puxadas do Strava com distância mínima de 21 km.
+              Corridas puxadas do Strava.
             </p>
           </div>
 
           <Link
             href="/"
-            className="rounded-full bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="rounded-full app-button px-5 py-3 text-sm font-medium"
           >
             Voltar ao dashboard
           </Link>
         </div>
 
         <section className="mb-8 grid gap-4 md:grid-cols-4">
-          <InfoCard title="Corridas 21k+" value={String(stats.totalRaces)} />
+          <InfoCard title="Corridas" value={String(stats.totalRaces)} />
           <InfoCard
             title="Países com corridas"
             value={String(stats.countriesCount)}
@@ -380,7 +386,7 @@ export default async function CorridasMundoPage() {
           <WorldRaceMap counts={counts} />
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm">
+        <section className="rounded-3xl app-card p-6">
           <h2 className="text-xl font-semibold text-gray-900">
             Ranking por país
           </h2>
@@ -402,7 +408,7 @@ export default async function CorridasMundoPage() {
                 return (
                   <div
                     key={item.country}
-                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                    className="rounded-2xl app-card-soft p-4"
                   >
                     <div className="flex items-center justify-between">
                       <p className="flex items-center gap-2 text-lg font-semibold text-gray-900">
@@ -410,7 +416,7 @@ export default async function CorridasMundoPage() {
                         <span>{displayCountry}</span>
                       </p>
 
-                      <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
+                      <span className="rounded-full bg-[#e0007a]/10 px-3 py-1 text-sm font-semibold text-[#b00060]">
                         {item.count} {item.count === 1 ? "corrida" : "corridas"}
                       </span>
                     </div>
@@ -423,12 +429,12 @@ export default async function CorridasMundoPage() {
                         return (
                           <div
                             key={race.id}
-                            className="rounded-xl bg-white p-3 text-sm text-gray-700"
+                            className="rounded-xl bg-white/80 p-3 text-sm text-gray-700 shadow-sm"
                           >
                             <p className="flex items-center gap-2 font-medium text-gray-900">
                               {medal ? (
                                 <span
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-sm"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#e0007a]/10 text-sm"
                                   title="Top 3 melhores paces"
                                 >
                                   {medal}
@@ -471,7 +477,7 @@ export default async function CorridasMundoPage() {
 
 function InfoCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-sm">
+    <div className="rounded-3xl app-card p-6">
       <p className="text-sm text-gray-500">{title}</p>
       <h2 className="mt-2 text-2xl font-bold text-gray-900">{value}</h2>
     </div>

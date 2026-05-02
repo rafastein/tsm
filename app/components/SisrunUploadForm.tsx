@@ -46,7 +46,7 @@ export default function SisrunUploadForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-3xl bg-white p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="rounded-3xl app-card p-6">
       <h2 className="text-xl font-semibold text-gray-900">Atualizar SisRUN</h2>
       <p className="mt-1 text-sm text-gray-500">
         Envie a planilha exportada para atualizar o planejamento.
@@ -72,7 +72,7 @@ export default function SisrunUploadForm() {
       <button
         type="submit"
         disabled={loading}
-        className="mt-5 rounded-full bg-orange-500 px-5 py-3 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-5 rounded-full bg-[#e0007a] px-5 py-3 text-sm font-medium text-white hover:bg-[#bf0068] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Processando..." : "Enviar planilha"}
       </button>

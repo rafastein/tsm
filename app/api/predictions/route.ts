@@ -10,7 +10,7 @@ async function readPredictions() {
     return JSON.parse(content);
   } catch {
     return {
-      stravaMarathonPrediction: "03:49:00",
+      stravaMarathonPrediction: "01:59:33",
     };
   }
 }

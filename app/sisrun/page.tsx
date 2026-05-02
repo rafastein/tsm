@@ -8,11 +8,11 @@ export default async function SisrunPage() {
   const todayRow = getTodaySisrunRow(sisrunData);
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 md:p-10">
+    <main className="min-h-screen app-page-bg p-6 md:p-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-orange-600">SisRUN</p>
+            <p className="text-sm font-medium text-[#e0007a]">SisRUN</p>
             <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">
               Planejamento semanal
             </h1>
@@ -20,7 +20,7 @@ export default async function SisrunPage() {
 
           <Link
             href="/"
-            className="rounded-full bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="rounded-full app-button px-5 py-3 text-sm font-medium"
           >
             Voltar ao dashboard
           </Link>
@@ -29,7 +29,7 @@ export default async function SisrunPage() {
         <section className="mb-8 grid gap-4 lg:grid-cols-[1fr_.9fr]">
           <SisrunUploadForm />
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="rounded-3xl app-card p-6">
             <h2 className="text-xl font-semibold text-gray-900">Resumo da semana</h2>
             <p className="mt-1 text-sm text-gray-500">
               Dados carregados da planilha atual do SisRUN.
@@ -37,7 +37,7 @@ export default async function SisrunPage() {
 
             {currentWeek ? (
               <div className="mt-5 space-y-4">
-                <div className="rounded-2xl bg-gray-50 p-4">
+                <div className="rounded-2xl app-card-soft p-4">
                   <p className="text-sm text-gray-500">Período</p>
                   <p className="mt-1 text-lg font-semibold text-gray-900">
                     {currentWeek.weekStart} até {currentWeek.weekEnd}
@@ -55,7 +55,7 @@ export default async function SisrunPage() {
                   />
                 </div>
 
-                <div className="rounded-2xl bg-gray-50 p-4">
+                <div className="rounded-2xl app-card-soft p-4">
                   <p className="text-sm text-gray-500">Treino de hoje</p>
                   {todayRow ? (
                     <div className="mt-2 text-sm text-gray-700">
@@ -87,7 +87,7 @@ export default async function SisrunPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-sm">
+        <section className="rounded-3xl app-card p-6">
           <h2 className="text-xl font-semibold text-gray-900">Dias da semana atual</h2>
           <p className="mt-1 text-sm text-gray-500">
             Planejamento diário extraído da planilha.
@@ -107,7 +107,7 @@ export default async function SisrunPage() {
                 .map((row, index) => (
                   <div
                     key={`${row.date}-${index}`}
-                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                    className="rounded-2xl app-card-soft p-4"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
@@ -161,7 +161,7 @@ export default async function SisrunPage() {
 
 function InfoCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
+    <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
       <p className="text-sm text-gray-500">{title}</p>
       <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
     </div>
