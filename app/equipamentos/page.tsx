@@ -30,6 +30,7 @@ type WorkoutType =
 type ManualGear = {
   name: string;
   km: number;
+  maxKm: number; // Vida útil estimada baseada em reviews especializados
 };
 
 type GearSummary = {
@@ -37,6 +38,7 @@ type GearSummary = {
   name: string;
   brand: string;
   totalKm: number;
+  maxKm: number;
   totalTime: number;
   totalElevation: number;
   activities: number;
@@ -49,16 +51,28 @@ const STRAVA_AFTER_EPOCH = Math.floor(
   new Date("2024-01-01T00:00:00Z").getTime() / 1000
 );
 
+// Vida útil por modelo baseada em reviews especializados (Solereview, RunRepeat, Doctors of Running):
+//
+// ASICS NovaBlast 3:  treino diário com outsole AHAR, vida útil ~700 km
+// ASICS NovaBlast 4:  outsole AHAR+ mais espesso (3.9mm), vida útil ~800 km (Solereview: 500mi)
+// ASICS Superblast 3: outsole ASICSGRIP + AHAR, midsole FF Leap duradouro, ~800 km
+//                     (Solereview Superblast 2: 500+mi; runners relatam 1000km no SB1)
+// Nike Alphafly 3:    tênis de prova, ZoomX exposto, outsole leve, ~400 km
+//                     (Nike afirma 250mi; heel strikers têm durabilidade menor)
+// Adidas EVO SL:      outsole Continental, Lightstrike Pro durável, ~800 km
+//                     (Solereview: 450mi median; The Running Channel viu pares com 1000km)
+// Adidas Adios Pro 4: tênis de prova com rods, outsole Lighttraxion, ~500 km
+// Health Hirace:      tênis de academia/recuperação, referência genérica ~500 km
 const MANUAL_GEARS: ManualGear[] = [
-  { name: "ASICS NovaBlast 3", km: 134.1 },
-  { name: "ASICS Novablast 4", km: 282.5 },
-  { name: "Nike Alphafly 3", km: 146.6 },
-  { name: "Nike Alphafly 3 Rosa", km: 37.7 },
-  { name: "Adidas EVO SL", km: 174.4 },
-  { name: "Health Hirace Hiwings Pro", km: 17.1 },
-  { name: "Adidas EVO SL Bege", km: 59.1 },
-  { name: "Adidas Adios Pro 4", km: 38.7 },
-  { name: "ASICS Superblast 3", km: 61.9 },
+  { name: "ASICS NovaBlast 3",       km: 134.1, maxKm: 700 },
+  { name: "ASICS Novablast 4",       km: 282.5, maxKm: 800 },
+  { name: "Nike Alphafly 3",         km: 146.6, maxKm: 400 },
+  { name: "Nike Alphafly 3 Rosa",    km: 37.7,  maxKm: 400 },
+  { name: "Adidas EVO SL",           km: 174.4, maxKm: 800 },
+  { name: "Health Hirace Hiwings Pro", km: 17.1, maxKm: 500 },
+  { name: "Adidas EVO SL Bege",      km: 59.1,  maxKm: 800 },
+  { name: "Adidas Adios Pro 4",      km: 38.7,  maxKm: 500 },
+  { name: "ASICS Superblast 3",      km: 61.9,  maxKm: 800 },
 ];
 
 function findManualGearByKm(totalKm: number) {
@@ -138,8 +152,11 @@ function formatDuration(seconds: number) {
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
 }
 
-function getWearStatus(totalKm: number) {
-  if (totalKm >= 600) {
+// maxKm é o limite real do tênis, variando por modelo
+function getWearStatus(totalKm: number, maxKm: number) {
+  const ratio = totalKm / maxKm;
+
+  if (ratio >= 1) {
     return {
       label: "Muito rodado. Atenção alta",
       emoji: "🔴",
@@ -149,23 +166,23 @@ function getWearStatus(totalKm: number) {
     };
   }
 
-  if (totalKm >= 350) {
+  if (ratio >= 0.75) {
     return {
       label: "Bem rodado. Monitorar desgaste",
       emoji: "🟡",
       tone: "bg-amber-100 text-amber-700",
       bar: "bg-amber-500",
-      progress: Math.min((totalKm / 600) * 100, 100),
+      progress: Math.min(ratio * 100, 100),
     };
   }
 
-  if (totalKm >= 200) {
+  if (ratio >= 0.4) {
     return {
       label: "Rodado, mas saudável",
       emoji: "🔵",
       tone: "bg-blue-100 text-blue-700",
       bar: "bg-blue-500",
-      progress: Math.min((totalKm / 600) * 100, 100),
+      progress: Math.min(ratio * 100, 100),
     };
   }
 
@@ -174,13 +191,14 @@ function getWearStatus(totalKm: number) {
     emoji: "🟢",
     tone: "bg-emerald-100 text-emerald-700",
     bar: "bg-emerald-500",
-    progress: Math.min((totalKm / 600) * 100, 100),
+    progress: Math.min(ratio * 100, 100),
   };
 }
 
 function scoreShoeForWorkout(
   name: string,
   totalKm: number,
+  maxKm: number,
   workoutType: WorkoutType
 ) {
   let score = 0;
@@ -223,9 +241,11 @@ function scoreShoeForWorkout(
     if (n.includes("superblast")) score += 70;
   }
 
-  if (totalKm >= 600) score -= 80;
-  else if (totalKm >= 350) score -= 30;
-  else if (totalKm >= 200) score -= 10;
+  // Penalidade proporcional ao desgaste real de cada modelo
+  const ratio = totalKm / maxKm;
+  if (ratio >= 1) score -= 80;
+  else if (ratio >= 0.75) score -= 30;
+  else if (ratio >= 0.4) score -= 10;
 
   return score;
 }
@@ -237,6 +257,7 @@ function getBestShoeForWorkout(gears: GearSummary[], workoutType: WorkoutType) {
       recommendationScore: scoreShoeForWorkout(
         gear.name,
         gear.totalKm,
+        gear.maxKm,
         workoutType
       ),
     }))
@@ -272,6 +293,7 @@ export default async function EquipamentosPage() {
           name: gearId,
           brand: "equipamento",
           totalKm: 0,
+          maxKm: 600,
           totalTime: 0,
           totalElevation: 0,
           activities: 0,
@@ -325,6 +347,7 @@ export default async function EquipamentosPage() {
         name: manualGear.name,
         brand: extractBrand(manualGear.name),
         totalKm: manualGear.km,
+        maxKm: manualGear.maxKm,
       };
     })
     .filter((gear): gear is GearSummary => gear !== null)
@@ -431,7 +454,7 @@ export default async function EquipamentosPage() {
                       gear.efficiencies.length
                     : null;
 
-                const wear = getWearStatus(gear.totalKm);
+                const wear = getWearStatus(gear.totalKm, gear.maxKm);
 
                 return (
                   <article key={gear.gearId} className="app-card p-6">
@@ -491,7 +514,9 @@ export default async function EquipamentosPage() {
                     <div className="mt-4">
                       <div className="mb-1 flex justify-between text-xs text-gray-600">
                         <span>Desgaste estimado</span>
-                        <span>{gear.totalKm.toFixed(0)} / 600 km</span>
+                        <span>
+                          {gear.totalKm.toFixed(0)} / {gear.maxKm} km
+                        </span>
                       </div>
 
                       <div className="h-2 overflow-hidden rounded-full bg-white/70">
