@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dashboard Strava/SisRun Rafael",
+  title: "Dashboard da Thai",
   description: "Criado por Rafael Cabral",
 };
 
