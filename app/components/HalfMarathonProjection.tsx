@@ -34,6 +34,7 @@ type LongRunPoint = {
 };
 
 type Props = {
+  weeksToRace: number;
   longRuns: LongRunPoint[];
 };
 
@@ -78,11 +79,11 @@ function formatDateLabel(iso: string) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
-export default function HalfMarathonProjection({ longRuns }: Props) {
+export default function HalfMarathonProjection({ longRuns, weeksToRace }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<unknown>(null);
 
-  const [weeks, setWeeks] = useState(10);
+  const [weeks, setWeeks] = useState(weeksToRace);
   const [pacingFactor, setPacingFactor] = useState(1.04);
 
   const t0 = longRuns.length

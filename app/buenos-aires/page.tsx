@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { formatBRDate, getBRDate, getActivityDate } from "../lib/date-utils";
-import fs from "fs/promises";
+
 import path from "path";
 import Link from "next/link";
 import HalfMarathonProjection from "../components/HalfMarathonProjection";
 import { getValidStravaAccessToken } from "../lib/strava-auth";
+import { getDynamicAthleteProfile, formatPrTime } from "../lib/strava-prs";
 import {
   getSisrunData,
   getCurrentWeek,
@@ -81,12 +82,34 @@ async function getActivities(): Promise<StravaActivity[]> {
   try {
     const accessToken = await getValidStravaAccessToken();
     if (!accessToken) return [];
-    const res = await fetch(
-      "https://www.strava.com/api/v3/athlete/activities?per_page=80",
-      { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" }
-    );
-    if (!res.ok) { console.warn("Falha Strava activities:", res.status); return []; }
-    return res.json();
+
+    // Busca os últimos 6 meses paginando (200/página) para garantir que
+    // os longões mais antigos sejam incluídos
+    const after = Math.floor((Date.now() - 365 * 24 * 3600 * 1000) / 1000);
+    const all: StravaActivity[] = [];
+    const perPage = 200;
+
+    for (let page = 1; page <= 10; page++) {
+      const url = new URL("https://www.strava.com/api/v3/athlete/activities");
+      url.searchParams.set("per_page", String(perPage));
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("after", String(after));
+
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+
+      if (!res.ok) { console.warn("Falha Strava activities:", res.status); break; }
+
+      const data = (await res.json()) as StravaActivity[];
+      if (!Array.isArray(data) || data.length === 0) break;
+
+      all.push(...data);
+      if (data.length < perPage) break;
+    }
+
+    return all;
   } catch (error) { console.warn("Erro ao buscar atividades:", error); return []; }
 }
 
@@ -190,7 +213,7 @@ const HALF_MARATHON_KM = 21.0975;
 const HALF_TARGET_PACE_SECONDS_PER_KM = 340;
 const HALF_TARGET_WEEKLY_KM = 35;
 const HALF_TARGET_LONG_RUN_KM = 18;
-const RELEVANT_LONG_RUN_KM = 16;
+const RELEVANT_LONG_RUN_KM = 13; // longões = corridas acima de 13km
 const PROJECTION_LONG_RUN_MIN_KM = 8;
 
 const REFERENCE_THRESHOLD_PACE_SECONDS_PER_KM = 332;
@@ -246,9 +269,20 @@ function estimateHalfFromRun(activity: StravaActivity) {
   return Math.round(est);
 }
 
-function predictFromLongRun(longestRun: StravaActivity | null) {
-  if (!longestRun || longestRun.distance / 1000 < RELEVANT_LONG_RUN_KM) return null;
-  return estimateHalfFromRun(longestRun);
+// Filtra longões: corridas acima de 13km
+// e retorna o melhor tempo estimado para a meia maratona
+function predictFromLongRun(runs: StravaActivity[]) {
+  const longRuns = runs.filter((a) => {
+    const km = a.distance / 1000;
+    return km >= 13;
+  });
+  if (!longRuns.length) return null;
+  // Pega o melhor (menor tempo estimado) dentre todos os longões
+  const estimates = longRuns
+    .map((r) => ({ run: r, est: estimateHalfFromRun(r) }))
+    .filter((x): x is { run: StravaActivity; est: number } => x.est !== null);
+  if (!estimates.length) return null;
+  return estimates.reduce((a, b) => (a.est <= b.est ? a : b));
 }
 
 function predictByTrainingModel(params: { runs: StravaActivity[]; weeklyData: { label: string; distanceKm: number }[]; targetWeeklyKm: number; targetLongRunKm: number }) {
@@ -388,7 +422,10 @@ function HrZoneBadge({ bpm, zones, hrMax }: { bpm: number; zones: HrZone[]; hrMa
 
 export default async function BuenosAiresPage() {
   const accessToken = await getValidStravaAccessToken();
-  const [athlete, activities, sisrunData, config] = await Promise.all([getAthlete(), getActivities(), getSisrunData(), getAthleteConfig()]);
+  const [athlete, activities, sisrunData, athleteProfile] = await Promise.all([
+    getAthlete(), getActivities(), getSisrunData(),
+    accessToken ? getDynamicAthleteProfile(accessToken) : Promise.resolve(null),
+  ]);
 
   const sisrunWeek  = getCurrentWeek(sisrunData) as SisrunWeek | null;
   const todaySisrunRow = getTodaySisrunRow(sisrunData);
@@ -406,7 +443,11 @@ export default async function BuenosAiresPage() {
   const cyclePhase = getCyclePhase(today, halfMarathonGoal.date);
   const runs       = activities.filter((a) => a.type === "Run");
 
-  const longestRun   = runs.length ? runs.reduce((m, a) => (a.distance > m.distance ? a : m)) : null;
+  // Longões = atividades com nome iniciado em "Longão" (já filtradas por 6 meses via getActivities)
+  const namedLongRuns = runs.filter((a) => a.distance >= 13000);
+  const longestRun   = namedLongRuns.length
+    ? namedLongRuns.reduce((m, a) => (a.distance > m.distance ? a : m))
+    : null;
   const longestRunKm = longestRun ? longestRun.distance / 1000 : 0;
 
   const weekMap = new Map<string, { label: string; distanceKm: number }>();
@@ -434,15 +475,27 @@ export default async function BuenosAiresPage() {
   const weeklyProgress           = Math.min((currentWeekKm / weeklyGoalKm) * 100, 100);
   const targetPaceLabel          = formatSecondsPerKm(halfMarathonGoal.targetPaceSecondsPerKm);
   const targetPredictionSeconds  = halfTimeFromPace(halfMarathonGoal.targetPaceSecondsPerKm);
-  const longRuns                 = runs.filter((a) => a.distance >= RELEVANT_LONG_RUN_KM * 1000);
+  const longRuns                 = namedLongRuns.filter((a) => a.distance >= RELEVANT_LONG_RUN_KM * 1000);
   const idealWeekKm              = getIdealWeeklyVolume(daysToRace);
   const weekVsIdealDifference    = currentWeekKm - idealWeekKm;
 
   const readiness            = getReadinessStatus({ currentWeekKm, idealWeekKm, longestRunKm, longRuns18Plus: longRuns.filter((a) => a.distance >= HALF_TARGET_LONG_RUN_KM * 1000).length });
-  const predictedFromLongRun = predictFromLongRun(longestRun);
+  const longRunResult        = predictFromLongRun(runs);
+  const predictedFromLongRun = longRunResult?.est ?? null;
+  const bestLongRun          = longRunResult?.run ?? null;
   const predictedBySite      = predictByTrainingModel({ runs, weeklyData, targetWeeklyKm: halfMarathonGoal.targetWeeklyKm, targetLongRunKm: halfMarathonGoal.targetLongRunKm });
-  const predictedFromVdotRange = predictFromVdot(config);
-  const realisticHalfRange   = getRealisticHalfPaceRange(config);
+  // Derivados do athleteProfile — precisam estar antes de predictedFromVdotRange e realisticHalfRange
+  const vdot         = athleteProfile?.vdot ?? null;
+  const vo2max       = athleteProfile?.vo2max ?? null;
+  const halfPaces    = athleteProfile?.paces.half ?? null;
+
+  // VDOT dinâmico via athleteProfile — substitui predictFromVdot(config) e getRealisticHalfPaceRange(config)
+  const predictedFromVdotRange = halfPaces
+    ? { min: Math.round(halfPaces.min * 21.0975), max: Math.round(halfPaces.max * 21.0975) }
+    : null;
+  const realisticHalfRange = halfPaces
+    ? { minSecondsPerKm: halfPaces.min, maxSecondsPerKm: halfPaces.max, minTime: Math.round(halfPaces.min * 21.0975), maxTime: Math.round(halfPaces.max * 21.0975) }
+    : { minSecondsPerKm: 360, maxSecondsPerKm: 390, minTime: Math.round(360 * 21.0975), maxTime: Math.round(390 * 21.0975) };
 
   const recentLongRunsBase = runs
     .filter((a) => a.distance >= RELEVANT_LONG_RUN_KM * 1000)
@@ -475,6 +528,7 @@ export default async function BuenosAiresPage() {
   );
 
   const projectionLongRuns = buildProjectionLongRuns(projRunsBase, projRunsEnriched);
+  const weeksToRace = Math.max(1, Math.ceil(daysToRace / 7));
   // ──────────────────────────────────────────────────────────────────────────
 
   const todayStatus = !todaySisrunRow ? "Sem treino previsto hoje"
@@ -482,9 +536,9 @@ export default async function BuenosAiresPage() {
     : todaySisrunRow.plannedDistanceKm > 0 && todayStravaKm >= todaySisrunRow.plannedDistanceKm ? "Concluído"
     : "Parcial";
 
-  const alerts  = buildBuenosAiresAlerts({ hasPlan: Boolean(sisrunWeek), plannedWeekKm, currentWeekKm, adherencePct: weeklyAdherencePct, plannedLongRunKm: sisrunWeek?.longRunPlannedKm ?? 0, currentWeekLongestRunKm, todayStatus, config });
-  const hrZones = config?.hrZones ?? [];
-  const hrMax   = config?.hrMax   ?? 184;
+  const alerts       = buildBuenosAiresAlerts({ hasPlan: Boolean(sisrunWeek), plannedWeekKm, currentWeekKm, adherencePct: weeklyAdherencePct, plannedLongRunKm: sisrunWeek?.longRunPlannedKm ?? 0, currentWeekLongestRunKm, todayStatus, config: null });
+  const hrZones: HrZone[] = [];
+  const hrMax   = 184;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#f7eef3] via-[#f3d7e4] to-[#f6b4d2] p-6 md:p-10">
@@ -595,36 +649,38 @@ export default async function BuenosAiresPage() {
           ))}
         </section>
 
-        {/* VO2max + Zonas cardíacas */}
-        {config && (
+        {/* VO2max dinâmico — PRs do Strava */}
+        {athleteProfile && vdot && (
           <section className="mb-8 grid gap-4 lg:grid-cols-2">
             <div className="rounded-3xl app-card p-6">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">VO2max estimado</h3>
-                  <p className="mt-1 text-sm text-gray-500">VDOT calculado por resultados de prova; classificação ajustada por sexo e idade.</p>
+                  <p className="mt-1 text-sm text-gray-500">Calculado automaticamente a partir dos PRs do Strava (best efforts).</p>
                 </div>
-                <span className="rounded-full bg-[#e0007a]/10 px-3 py-1 text-xs font-medium text-[#b00060]">VDOT {config.vdot}</span>
+                <span className="rounded-full bg-[#e0007a]/10 px-3 py-1 text-xs font-medium text-[#b00060]">VDOT {vdot.toFixed(1)}</span>
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-blue-600">VO2max</p><p className="mt-1 text-3xl font-bold text-blue-700">{config.vo2max}</p><p className="text-xs text-blue-500">ml/kg/min</p></div>
-                <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-gray-500">Limiar de lactato</p><p className="mt-1 text-3xl font-bold text-gray-900">{config.lactateThreshold}</p><p className="text-xs text-gray-400">bpm</p></div>
-                <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-gray-500">FC máxima</p><p className="mt-1 text-3xl font-bold text-gray-900">{config.hrMax}</p><p className="text-xs text-gray-400">bpm · Coros</p></div>
-                <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-gray-500">FC repouso</p><p className="mt-1 text-3xl font-bold text-gray-900">{config.hrRest}</p><p className="text-xs text-gray-400">bpm · Coros</p></div>
+                <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-blue-600">VO2max</p><p className="mt-1 text-3xl font-bold text-blue-700">{vo2max?.toFixed(1)}</p><p className="text-xs text-blue-500">ml/kg/min</p></div>
+                <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-[#b00060]">Pace meia (VDOT)</p><p className="mt-1 text-2xl font-bold text-[#8a1452]">{halfPaces ? `${formatSecondsPerKm(halfPaces.min)}–${formatSecondsPerKm(halfPaces.max)}` : "—"}</p><p className="text-xs text-[#e0007a]">pelo VDOT</p></div>
+                {athleteProfile.paces.km10 && <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-gray-500">Pace 10km (VDOT)</p><p className="mt-1 text-2xl font-bold text-gray-900">{formatSecondsPerKm(athleteProfile.paces.km10)}</p><p className="text-xs text-gray-400">potencial estimado</p></div>}
+                {athleteProfile.paces.km5 && <div className="rounded-2xl app-card-soft p-4"><p className="text-sm text-gray-500">Pace 5km (VDOT)</p><p className="mt-1 text-2xl font-bold text-gray-900">{formatSecondsPerKm(athleteProfile.paces.km5)}</p><p className="text-xs text-gray-400">potencial estimado</p></div>}
               </div>
-              <div className="mt-4 rounded-2xl bg-indigo-50 p-4">
-                <p className="text-sm font-medium text-indigo-700">Perfil usado na classificação</p>
-                <p className="mt-1 text-sm text-indigo-900">Mulher · {config.age} anos · {config.heightM.toFixed(2).replace(".", ",")} m · {config.weightKg} kg</p>
-                <p className="mt-1 text-xs text-indigo-600">Sexo, idade, altura e peso não entram no cálculo do VDOT; eles apenas contextualizam a classificação do VO2max.</p>
-              </div>
-              <div className="mt-5 rounded-2xl app-card-soft p-4">
-                <p className="mb-2 text-sm text-gray-500">Classificação de referência (mulher, 30–39 anos)</p>
-                <div className="relative h-3 w-full overflow-hidden rounded-full">
-                  <div className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(to right, #F09595, #FAC775, #97C459, #1D9E75, #0F6E56)" }} />
-                  <div className="absolute top-0 h-full w-1 rounded-full bg-blue-600" style={{ left: "32%" }} />
+              <div className="mt-4 rounded-2xl app-card-soft p-4">
+                <p className="mb-3 text-sm font-medium text-gray-700">PRs usados no cálculo</p>
+                <div className="space-y-2">
+                  {(["km5", "km10", "half", "marathon"] as const).map((key) => {
+                    const pr = athleteProfile.prs[key];
+                    const labels = { km5: "5 km", km10: "10 km", half: "Meia maratona", marathon: "Maratona" };
+                    return (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">{labels[key]}</span>
+                        {pr ? <span className="text-sm font-semibold text-gray-900">{formatPrTime(pr.timeSec)}</span> : <span className="text-xs text-gray-400">Não encontrado</span>}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="mt-1 flex justify-between text-xs text-gray-400"><span>Baixo ≤30</span><span>Razoável</span><span>Bom</span><span>Muito bom</span><span>Excelente 45+</span></div>
-                <p className="mt-2 text-sm font-medium text-emerald-700">Razoável, com margem de evolução — VO2max {config.vo2max} ml/kg/min</p>
+                <p className="mt-3 text-xs text-gray-400">Atualiza automaticamente a cada novo PR registrado no Strava.</p>
               </div>
               <div className="mt-4 rounded-2xl bg-[#e0007a]/10 p-4">
                 <p className="text-sm font-medium text-[#b00060]">FC alvo em Buenos Aires</p>
@@ -634,25 +690,23 @@ export default async function BuenosAiresPage() {
             </div>
 
             <div className="rounded-3xl app-card p-6">
-              <h3 className="text-xl font-semibold text-gray-900">Zonas cardíacas</h3>
-              <p className="mt-1 text-sm text-gray-500">Baseadas no limiar de lactato. FCmáx: {config.hrMax} bpm.</p>
+              <h3 className="text-xl font-semibold text-gray-900">Paces de treino pelo VDOT</h3>
+              <p className="mt-1 text-sm text-gray-500">Referências de Daniels derivadas do VDOT {vdot.toFixed(1)}.</p>
               <div className="mt-5 space-y-2">
-                {hrZones.map((zone) => {
-                  const isRace = zone.name === "Limiar";
-                  const range  = zone.min === 0 ? `< ${zone.max + 1}` : zone.max === 999 ? `> ${zone.min - 1}` : `${zone.min}–${zone.max}`;
-                  return (
-                    <div key={zone.name} className={`flex items-center gap-3 rounded-2xl p-3 ${isRace ? "bg-blue-50 ring-1 ring-blue-200" : "bg-white/55"}`}>
-                      <div className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: zone.color }} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className={`text-sm font-medium ${isRace ? "text-blue-800" : "text-gray-800"}`}>{zone.name}</p>
-                          {isRace && <span className="rounded-full bg-[#e0007a]/15 px-2 py-0.5 text-xs text-[#8a1452]">Alvo Buenos Aires</span>}
-                        </div>
-                      </div>
-                      <p className={`shrink-0 text-sm font-semibold ${isRace ? "text-blue-700" : "text-gray-700"}`}>{range} bpm</p>
+                {[
+                  { label: "Regenerativo / Fácil", pace: halfPaces ? `${formatSecondsPerKm(Math.round(halfPaces.max * 1.15))}–${formatSecondsPerKm(Math.round(halfPaces.max * 1.22))}` : "—", desc: "Z1–Z2", color: "bg-white/55" },
+                  { label: "Pace de meia maratona", pace: halfPaces ? `${formatSecondsPerKm(halfPaces.min)}–${formatSecondsPerKm(halfPaces.max)}` : "—", desc: "Z3–Z4", color: "bg-[#e0007a]/10 ring-1 ring-[#e0007a]/20" },
+                  { label: "Limiar (Threshold)",   pace: athleteProfile.paces.km10 ? formatSecondsPerKm(Math.round(athleteProfile.paces.km10 * 1.07)) : "—", desc: "Z4", color: "bg-white/55" },
+                  { label: "Intervalado (VO2max)", pace: athleteProfile.paces.km5 ? formatSecondsPerKm(athleteProfile.paces.km5) : "—", desc: "Z5", color: "bg-white/55" },
+                ].map((row) => (
+                  <div key={row.label} className={`flex items-center justify-between rounded-2xl p-3 ${row.color}`}>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{row.label}</p>
+                      <p className="text-xs text-gray-400">{row.desc}</p>
                     </div>
-                  );
-                })}
+                    <p className="text-sm font-bold text-gray-900">{row.pace}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </section>
@@ -665,12 +719,12 @@ export default async function BuenosAiresPage() {
             <p className="mt-1 text-sm text-gray-500">Comparação entre alvo, treinos feitos, dados reais de prova e VDOT recalibrado.</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <ProjectionCard title="Pelo pace-alvo"              value={formatFullDuration(targetPredictionSeconds)} caption={targetPaceLabel} />
-              <ProjectionCard title="Pelo longão mais forte"      value={predictedFromLongRun && longestRun ? formatFullDuration(predictedFromLongRun) : "Sem dado"} caption={predictedFromLongRun && longestRun ? `${longestRun.name} • ${(longestRun.distance / 1000).toFixed(1)} km` : "Ainda falta um longão mais robusto."} />
+              <ProjectionCard title="Pelo melhor longão (6 meses)" value={predictedFromLongRun && bestLongRun ? formatFullDuration(predictedFromLongRun) : "Sem dado"} caption={predictedFromLongRun && bestLongRun ? `${bestLongRun.name} • ${(bestLongRun.distance / 1000).toFixed(1)} km` : "Nenhum longão nomeado encontrado nos últimos 6 meses."} />
               <ProjectionCard title="Projeção calculada pelo site" value={predictedBySite ? formatFullDuration(predictedBySite) : "Sem dado"} caption={predictedBySite ? "Modelo híbrido com treinos feitos, longão, altimetria e consistência semanal." : "Dados insuficientes para projeção."} highlight />
               <div className="col-span-full rounded-2xl app-card-soft p-4 ring-1 ring-blue-200">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-blue-600">Projeção recalibrada</p>
-                  {config?.vo2maxSources && <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-medium text-blue-800">VDOT {config.vdot} · dados reais</span>}
+                  {vdot && <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-medium text-blue-800">VDOT {vdot.toFixed(1)} · PRs Strava</span>}
                 </div>
                 <p className="mt-2 text-2xl font-bold text-blue-900">{formatDurationShort(realisticHalfRange.minTime)}–{formatDurationShort(realisticHalfRange.maxTime)}</p>
                 <p className="mt-1 text-sm text-blue-700">Pace {formatSecondsPerKm(realisticHalfRange.minSecondsPerKm)}–{formatSecondsPerKm(realisticHalfRange.maxSecondsPerKm)} · baseado em 10 km real, limiar de 5:32/km e VDOT com ajuste conservador.</p>
@@ -714,7 +768,7 @@ export default async function BuenosAiresPage() {
         {/* ─── CALCULADORA DE PROJEÇÃO ─────────────────────────────────────── */}
         {projectionLongRuns.length >= 3 && (
           <section className="mb-8">
-            <HalfMarathonProjection longRuns={projectionLongRuns} />
+            <HalfMarathonProjection longRuns={projectionLongRuns} weeksToRace={weeksToRace} />
           </section>
         )}
 
@@ -732,10 +786,10 @@ export default async function BuenosAiresPage() {
                 {sisrunWeek ? <>O SisRUN prevê <span className="font-semibold">{plannedWeekKm.toFixed(1)} km</span> nesta semana, e o Strava mostra <span className="font-semibold">{currentWeekKm.toFixed(1)} km</span> executados até agora.</> : <>Sem semana do SisRUN carregada. Usando apenas o executado no Strava.</>}
               </p>
             </div>
-            {config && (
+            {vdot && halfPaces && (
               <div className="rounded-2xl bg-blue-50 p-5">
                 <p className="text-sm text-blue-600">Potencial pelo VO2max</p>
-                <p className="mt-2 text-sm leading-6 text-blue-800">O VO2max estimado de <span className="font-semibold">{config.vo2max} ml/kg/min</span> (VDOT {config.vdot}, mulher, {config.age} anos) indica potencial recalibrado para <span className="font-semibold">{`${formatSecondsPerKm(config.vdotPaces.halfMarathon.minSecondsPerKm)}–${formatSecondsPerKm(config.vdotPaces.halfMarathon.maxSecondsPerKm)}`}</span> na meia maratona. O pace-alvo atual está configurado em 5:40/km, portanto deve ser tratado como meta de evolução, não como pace conservador.</p>
+                <p className="mt-2 text-sm leading-6 text-blue-800">VO2max estimado de <span className="font-semibold">{vo2max?.toFixed(1)} ml/kg/min</span> (VDOT {vdot.toFixed(1)}) calculado automaticamente dos PRs do Strava. Indica potencial para <span className="font-semibold">{formatSecondsPerKm(halfPaces.min)}–{formatSecondsPerKm(halfPaces.max)}</span> na meia maratona. Atualiza sozinho a cada novo PR.</p>
               </div>
             )}
           </div>
