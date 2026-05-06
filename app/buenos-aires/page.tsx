@@ -136,8 +136,6 @@ async function getAthlete(): Promise<Athlete | null> {
   } catch (error) { console.warn("Erro ao buscar atleta:", error); return null; }
 }
 
-}
-
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function formatDate(dateString: string) { return formatBRDate(dateString); }
