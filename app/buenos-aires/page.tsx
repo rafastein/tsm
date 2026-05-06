@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { formatBRDate, getBRDate, getActivityDate } from "../lib/date-utils";
 
-import path from "path";
 import Link from "next/link";
 import HalfMarathonProjection from "../components/HalfMarathonProjection";
 import { getValidStravaAccessToken } from "../lib/strava-auth";
@@ -137,51 +136,6 @@ async function getAthlete(): Promise<Athlete | null> {
   } catch (error) { console.warn("Erro ao buscar atleta:", error); return null; }
 }
 
-const DEFAULT_ATHLETE_CONFIG: AthleteConfig = {
-  hrMax: 187,
-  hrRest: 64,
-  lactateThreshold: 167,
-  vdot: 34,
-  vo2max: 34,
-  sex: "mulher",
-  age: 37,
-  heightM: 1.59,
-  weightKg: 55,
-  vo2maxSources: ["PRs reais de 3 km, 5 km, 10 km e meia", "VDOT recalibrado"],
-  hrZones: [
-    { name: "Recuperação",           min: 0,   max: 133, color: "bg-cyan-400"      },
-    { name: "Resistência Aeróbica",  min: 134, max: 150, color: "bg-green-500"     },
-    { name: "Potência Aeróbica",     min: 151, max: 159, color: "bg-yellow-400"    },
-    { name: "Limiar",                min: 160, max: 170, color: "bg-amber-400"     },
-    { name: "Resistência Anaeróbica",min: 171, max: 177, color: "bg-[#e0007a]"    },
-    { name: "Potência Anaeróbica",   min: 178, max: 187, color: "bg-red-500"       },
-  ],
-  vdotPaces: {
-    marathon:     { minSecondsPerKm: 384, maxSecondsPerKm: 405 },
-    halfMarathon: { minSecondsPerKm: 360, maxSecondsPerKm: 370 },
-    10:           { minSecondsPerKm: 342, maxSecondsPerKm: 350 },
-    5:            { minSecondsPerKm: 330, maxSecondsPerKm: 338 },
-  },
-};
-
-function normalizeAthleteConfig(config: Partial<AthleteConfig> | null): AthleteConfig {
-  return {
-    ...DEFAULT_ATHLETE_CONFIG,
-    ...(config ?? {}),
-    hrMax: 187, hrRest: 64, lactateThreshold: 167,
-    vdot: 34, vo2max: 34, sex: "mulher", age: 37,
-    heightM: 1.59, weightKg: 55,
-    vo2maxSources: ["PRs reais de 3 km, 5 km, 10 km e meia", "VDOT recalibrado"],
-    vdotPaces: DEFAULT_ATHLETE_CONFIG.vdotPaces,
-  };
-}
-
-async function getAthleteConfig(): Promise<AthleteConfig> {
-  const filePath = path.join(process.cwd(), "data", "athlete-config.json");
-  try {
-    const content = await fs.readFile(filePath, "utf-8");
-    return normalizeAthleteConfig(JSON.parse(content));
-  } catch { return DEFAULT_ATHLETE_CONFIG; }
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
