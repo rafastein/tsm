@@ -23,14 +23,16 @@ type WorkoutType =
   | "regenerativo"
   | "rodagem"
   | "intervalado"
+  | "fartlek"
   | "ritmo"
   | "longao"
-  | "prova";
+  | "prova_curta"
+  | "prova_longa";
 
 type ManualGear = {
   name: string;
   km: number;
-  maxKm: number; // Vida útil estimada baseada em reviews especializados
+  maxKm: number;
 };
 
 type GearSummary = {
@@ -54,48 +56,40 @@ const STRAVA_AFTER_EPOCH = Math.floor(
 // Vida útil por modelo baseada em reviews especializados (Solereview, RunRepeat, Doctors of Running):
 //
 // ASICS NovaBlast 3:  treino diário com outsole AHAR, vida útil ~700 km
-// ASICS NovaBlast 4:  outsole AHAR+ mais espesso (3.9mm), vida útil ~800 km (Solereview: 500mi)
+// ASICS NovaBlast 4:  outsole AHAR+ mais espesso (3.9mm), vida útil ~800 km
 // ASICS Superblast 3: outsole ASICSGRIP + AHAR, midsole FF Leap duradouro, ~800 km
-//                     (Solereview Superblast 2: 500+mi; runners relatam 1000km no SB1)
 // Nike Alphafly 3:    tênis de prova, ZoomX exposto, outsole leve, ~400 km
-//                     (Nike afirma 250mi; heel strikers têm durabilidade menor)
 // Adidas EVO SL:      outsole Continental, Lightstrike Pro durável, ~800 km
-//                     (Solereview: 450mi median; The Running Channel viu pares com 1000km)
 // Adidas Adios Pro 4: tênis de prova com rods, outsole Lighttraxion, ~500 km
 // Health Hirace:      tênis de academia/recuperação, referência genérica ~500 km
 const MANUAL_GEARS: ManualGear[] = [
-  { name: "ASICS NovaBlast 3",       km: 134.1, maxKm: 700 },
-  { name: "ASICS Novablast 4",       km: 282.5, maxKm: 800 },
-  { name: "Nike Alphafly 3",         km: 146.6, maxKm: 400 },
-  { name: "Nike Alphafly 3 Rosa",    km: 37.7,  maxKm: 400 },
-  { name: "Adidas EVO SL",           km: 174.4, maxKm: 800 },
-  { name: "Health Hirace Hiwings Pro", km: 17.1, maxKm: 500 },
-  { name: "Adidas EVO SL Bege",      km: 59.1,  maxKm: 800 },
-  { name: "Adidas Adios Pro 4",      km: 38.7,  maxKm: 500 },
-  { name: "ASICS Superblast 3",      km: 61.9,  maxKm: 800 },
+  { name: "ASICS NovaBlast 3",         km: 134.1, maxKm: 700 },
+  { name: "ASICS Novablast 4",         km: 282.5, maxKm: 800 },
+  { name: "Nike Alphafly 3",           km: 146.6, maxKm: 400 },
+  { name: "Nike Alphafly 3 Rosa",      km: 37.7,  maxKm: 400 },
+  { name: "Adidas EVO SL",             km: 174.4, maxKm: 800 },
+  { name: "Health Hirace Hiwings Pro", km: 17.1,  maxKm: 500 },
+  { name: "Adidas EVO SL Bege",        km: 59.1,  maxKm: 800 },
+  { name: "Adidas Adios Pro 4",        km: 38.7,  maxKm: 500 },
+  { name: "ASICS Superblast 3",        km: 61.9,  maxKm: 800 },
 ];
 
 function findManualGearByKm(totalKm: number) {
   const rounded = Number(totalKm.toFixed(1));
-
-  return (
-    MANUAL_GEARS.find((gear) => Math.abs(gear.km - rounded) <= 0.3) ?? null
-  );
+  return MANUAL_GEARS.find((gear) => Math.abs(gear.km - rounded) <= 0.3) ?? null;
 }
 
 function extractBrand(name: string) {
   const lower = name.toLowerCase();
-
-  if (lower.includes("adidas")) return "adidas";
-  if (lower.includes("puma")) return "puma";
-  if (lower.includes("asics")) return "asics";
-  if (lower.includes("new balance")) return "new balance";
-  if (lower.includes("fila")) return "fila";
-  if (lower.includes("361")) return "361";
-  if (lower.includes("nike")) return "nike";
+  if (lower.includes("adidas"))                        return "adidas";
+  if (lower.includes("puma"))                          return "puma";
+  if (lower.includes("asics"))                         return "asics";
+  if (lower.includes("new balance"))                   return "new balance";
+  if (lower.includes("fila"))                          return "fila";
+  if (lower.includes("361"))                           return "361";
+  if (lower.includes("nike"))                          return "nike";
   if (lower.includes("health") || lower.includes("hirace")) return "health";
-  if (lower.includes("on ")) return "on";
-
+  if (lower.includes("on "))                           return "on";
   return name.split(" ")[0];
 }
 
@@ -123,7 +117,6 @@ async function getActivities(): Promise<StravaActivity[]> {
     if (!Array.isArray(data) || data.length === 0) break;
 
     all.push(...data);
-
     if (data.length < perPage) break;
   }
 
@@ -137,62 +130,36 @@ function calculateEfficiency(
   elevationGain: number
 ) {
   if (!distanceKm || !movingTimeSec || !averageHeartrate) return null;
-
   const rawSpeedKmh = distanceKm / (movingTimeSec / 3600);
   const elevationFactor =
     elevationGain > 0 ? 1 + elevationGain / (distanceKm * 100) : 1;
-
   return ((rawSpeedKmh * elevationFactor) / averageHeartrate) * 1000;
 }
 
 function formatDuration(seconds: number) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
 }
 
-// maxKm é o limite real do tênis, variando por modelo
 function getWearStatus(totalKm: number, maxKm: number) {
   const ratio = totalKm / maxKm;
 
-  if (ratio >= 1) {
-    return {
-      label: "Muito rodado. Atenção alta",
-      emoji: "🔴",
-      tone: "bg-red-100 text-red-700",
-      bar: "bg-red-500",
-      progress: 100,
-    };
-  }
+  if (ratio >= 1)
+    return { label: "Muito rodado. Atenção alta",       emoji: "🔴", tone: "bg-red-100 text-red-700",         bar: "bg-red-500",     progress: 100 };
+  if (ratio >= 0.75)
+    return { label: "Bem rodado. Monitorar desgaste",   emoji: "🟡", tone: "bg-amber-100 text-amber-700",     bar: "bg-amber-500",   progress: Math.min(ratio * 100, 100) };
+  if (ratio >= 0.4)
+    return { label: "Rodado, mas saudável",             emoji: "🔵", tone: "bg-blue-100 text-blue-700",       bar: "bg-blue-500",    progress: Math.min(ratio * 100, 100) };
+  return   { label: "Novo / confortável",               emoji: "🟢", tone: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500", progress: Math.min(ratio * 100, 100) };
+}
 
-  if (ratio >= 0.75) {
-    return {
-      label: "Bem rodado. Monitorar desgaste",
-      emoji: "🟡",
-      tone: "bg-amber-100 text-amber-700",
-      bar: "bg-amber-500",
-      progress: Math.min(ratio * 100, 100),
-    };
-  }
+// Tênis reservados exclusivamente para provas — não devem aparecer em treinos
+const RACE_ONLY_SHOES = ["alphafly", "adios pro"];
 
-  if (ratio >= 0.4) {
-    return {
-      label: "Rodado, mas saudável",
-      emoji: "🔵",
-      tone: "bg-blue-100 text-blue-700",
-      bar: "bg-blue-500",
-      progress: Math.min(ratio * 100, 100),
-    };
-  }
-
-  return {
-    label: "Novo / confortável",
-    emoji: "🟢",
-    tone: "bg-emerald-100 text-emerald-700",
-    bar: "bg-emerald-500",
-    progress: Math.min(ratio * 100, 100),
-  };
+function isRaceOnly(name: string) {
+  const n = name.toLowerCase();
+  return RACE_ONLY_SHOES.some((s) => n.includes(s));
 }
 
 function scoreShoeForWorkout(
@@ -201,51 +168,73 @@ function scoreShoeForWorkout(
   maxKm: number,
   workoutType: WorkoutType
 ) {
-  let score = 0;
   const n = name.toLowerCase();
+  const isRace = workoutType === "prova_curta" || workoutType === "prova_longa";
 
-  if (workoutType === "prova") {
-    if (n.includes("alphafly")) score += 105;
-    if (n.includes("adios pro")) score += 100;
-    if (n.includes("superblast")) score += 70;
+  // Tênis de prova não entram em recomendações de treino
+  if (isRaceOnly(name) && !isRace) return -999;
+
+  let score = 0;
+
+  if (workoutType === "prova_curta") {
+    // Até 10k: explosivo e rígido
+    if (n.includes("alphafly"))  score += 100; // Alphafly 3 — explosivo para curtas
+    if (n.includes("adios pro")) score += 75;  // Adios Pro 4 — funciona mas é mais maratona
+  }
+
+  if (workoutType === "prova_longa") {
+    // Acima de 10k: amortecimento + placa para distância
+    if (n.includes("adios pro")) score += 100; // Adios Pro 4 — feito para meia/maratona
+    if (n.includes("alphafly"))  score += 80;  // Alphafly 3 — também excelente em meias
   }
 
   if (workoutType === "intervalado") {
-    if (n.includes("alphafly")) score += 98;
-    if (n.includes("adios pro")) score += 95;
-    if (n.includes("evo")) score += 75;
-    if (n.includes("superblast")) score += 70;
+    // EVO SL: Lightstrike Pro responsivo, ótimo para tiros mesmo sem placa
+    if (n.includes("evo"))        score += 100; // EVO SL — responsivo e leve para tiros
+    if (n.includes("superblast")) score += 60;  // Superblast — aceitável mas não o ideal
+    if (n.includes("novablast"))  score += 40;  // Novablast — alternativa mais macia
+  }
+
+  if (workoutType === "fartlek") {
+    // Fartlek: variações de ritmo — EVO SL é versátil e responsivo
+    if (n.includes("evo"))        score += 100; // EVO SL — ideal para variações de pace
+    if (n.includes("superblast")) score += 65;  // Superblast — um pouco pesado para fartlek
+    if (n.includes("novablast"))  score += 50;  // Novablast — confortável mas menos responsivo
   }
 
   if (workoutType === "ritmo") {
-    if (n.includes("superblast")) score += 95;
-    if (n.includes("evo")) score += 85;
-    if (n.includes("adios pro")) score += 80;
+    // Tempo run: Superblast é o mais indicado pelo amortecimento + velocidade
+    if (n.includes("superblast")) score += 100; // Superblast 3 — ideal para tempo run
+    if (n.includes("evo"))        score += 75;  // EVO SL — funciona mas melhor em tiros
+    if (n.includes("novablast"))  score += 50;  // Novablast — aceitável para ritmos moderados
   }
 
   if (workoutType === "longao") {
-    if (n.includes("superblast")) score += 100;
-    if (n.includes("novablast")) score += 85;
-    if (n.includes("evo")) score += 80;
+    // Longão: Superblast é o principal — amortecimento e proteção para distância
+    if (n.includes("superblast")) score += 100; // Superblast 3 — feito para longões
+    if (n.includes("novablast"))  score += 70;  // Novablast — segunda opção confortável
+    if (n.includes("evo"))        score += 40;  // EVO SL — não é o ideal para distância longa
   }
 
   if (workoutType === "rodagem") {
-    if (n.includes("novablast")) score += 95;
-    if (n.includes("evo")) score += 80;
-    if (n.includes("health")) score += 65;
+    // Rodagem: volume diário — NovaBlast é o mais versátil e durável
+    if (n.includes("novablast"))  score += 100; // NovaBlast 3/4 — ideal para volume
+    if (n.includes("evo"))        score += 65;  // EVO SL — pode rodar mas é mais treino rápido
+    if (n.includes("superblast")) score += 55;  // Superblast — aceitável para rodagens mais rápidas
   }
 
   if (workoutType === "regenerativo") {
-    if (n.includes("novablast")) score += 90;
-    if (n.includes("health")) score += 80;
-    if (n.includes("superblast")) score += 70;
+    // Recuperação: Health Hirace em primeiro, depois NovaBlast
+    if (n.includes("health"))     score += 100; // Health Hirace — leve, macio, para recuperação
+    if (n.includes("novablast"))  score += 85;  // NovaBlast — confortável e macio
+    if (n.includes("superblast")) score += 50;  // Superblast — aceitável mas meio "premium" para isso
   }
 
   // Penalidade proporcional ao desgaste real de cada modelo
   const ratio = totalKm / maxKm;
-  if (ratio >= 1) score -= 80;
+  if (ratio >= 1)         score -= 80;
   else if (ratio >= 0.75) score -= 30;
-  else if (ratio >= 0.4) score -= 10;
+  else if (ratio >= 0.4)  score -= 10;
 
   return score;
 }
@@ -267,13 +256,14 @@ function getBestShoeForWorkout(gears: GearSummary[], workoutType: WorkoutType) {
 function getWorkoutLabel(type: WorkoutType) {
   const labels: Record<WorkoutType, string> = {
     regenerativo: "Regenerativo",
-    rodagem: "Rodagem",
-    intervalado: "Intervalado",
-    ritmo: "Ritmo",
-    longao: "Longão",
-    prova: "Prova",
+    rodagem:      "Rodagem",
+    intervalado:  "Intervalado",
+    fartlek:      "Fartlek",
+    ritmo:        "Ritmo",
+    longao:       "Longão",
+    prova_curta:  "Prova Curta (≤ 10k)",
+    prova_longa:  "Prova Longa (> 10k)",
   };
-
   return labels[type];
 }
 
@@ -321,13 +311,10 @@ export default async function EquipamentosPage() {
         activity.total_elevation_gain ?? 0
       );
 
-      if (efficiency) {
-        item.efficiencies.push(efficiency);
-      }
+      if (efficiency) item.efficiencies.push(efficiency);
 
       const currentDate = new Date(activity.start_date_local ?? activity.start_date);
       const lastDate = new Date(item.lastUse);
-
       if (currentDate > lastDate) {
         item.lastUse = activity.start_date_local ?? activity.start_date;
       }
@@ -339,9 +326,7 @@ export default async function EquipamentosPage() {
   const grouped = rawGrouped
     .map((gear) => {
       const manualGear = findManualGearByKm(gear.totalKm);
-
       if (!manualGear) return null;
-
       return {
         ...gear,
         name: manualGear.name,
@@ -357,9 +342,11 @@ export default async function EquipamentosPage() {
     "regenerativo",
     "rodagem",
     "longao",
+    "fartlek",
     "ritmo",
     "intervalado",
-    "prova",
+    "prova_curta",
+    "prova_longa",
   ];
 
   return (
@@ -401,32 +388,24 @@ export default async function EquipamentosPage() {
                 Sugestão baseada na função do tênis e na quilometragem acumulada.
               </p>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <div className="mt-5 grid gap-3 md:grid-cols-4">
                 {recommendationTypes.map((type) => {
                   const shoe = getBestShoeForWorkout(grouped, type);
-
                   return (
                     <div key={type} className="app-card-soft p-4">
                       <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                         {getWorkoutLabel(type)}
                       </p>
-
                       {shoe ? (
                         <div className="mt-2 flex items-center gap-3">
                           <BrandIcon brand={shoe.brand} />
                           <div>
-                            <p className="font-semibold text-gray-900">
-                              {shoe.name}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {shoe.totalKm.toFixed(1)} km
-                            </p>
+                            <p className="font-semibold text-gray-900">{shoe.name}</p>
+                            <p className="text-xs text-gray-600">{shoe.totalKm.toFixed(1)} km</p>
                           </div>
                         </div>
                       ) : (
-                        <p className="mt-2 text-sm text-gray-600">
-                          Sem sugestão disponível.
-                        </p>
+                        <p className="mt-2 text-sm text-gray-600">Sem sugestão disponível.</p>
                       )}
                     </div>
                   );
@@ -438,22 +417,16 @@ export default async function EquipamentosPage() {
               {grouped.map((gear) => {
                 const averagePace =
                   gear.totalKm > 0 ? gear.totalTime / gear.totalKm : null;
-
                 const averageKmPerRun =
                   gear.activities > 0 ? gear.totalKm / gear.activities : 0;
-
                 const averageHr =
                   gear.heartRates.length > 0
-                    ? gear.heartRates.reduce((a, b) => a + b, 0) /
-                      gear.heartRates.length
+                    ? gear.heartRates.reduce((a, b) => a + b, 0) / gear.heartRates.length
                     : null;
-
                 const averageEfficiency =
                   gear.efficiencies.length > 0
-                    ? gear.efficiencies.reduce((a, b) => a + b, 0) /
-                      gear.efficiencies.length
+                    ? gear.efficiencies.reduce((a, b) => a + b, 0) / gear.efficiencies.length
                     : null;
-
                 const wear = getWearStatus(gear.totalKm, gear.maxKm);
 
                 return (
@@ -462,63 +435,31 @@ export default async function EquipamentosPage() {
                       <div className="flex items-center gap-3">
                         <BrandIcon brand={gear.brand} />
                         <div>
-                          <h2 className="text-xl font-bold text-gray-900">
-                            {gear.name}
-                          </h2>
+                          <h2 className="text-xl font-bold text-gray-900">{gear.name}</h2>
                         </div>
                       </div>
-
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${wear.tone}`}
-                      >
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${wear.tone}`}>
                         {wear.emoji} {wear.label}
                       </span>
                     </div>
 
                     <div className="mt-5 grid gap-3 md:grid-cols-3">
-                      <Metric
-                        label="Km total"
-                        value={`${gear.totalKm.toFixed(1)} km`}
-                      />
-                      <Metric label="Treinos" value={String(gear.activities)} />
-                      <Metric
-                        label="Média por corrida"
-                        value={`${averageKmPerRun.toFixed(1)} km`}
-                      />
-                      <Metric
-                        label="Tempo"
-                        value={formatDuration(gear.totalTime)}
-                      />
-                      <Metric
-                        label="Pace médio"
-                        value={formatLongRunPace(averagePace)}
-                      />
-                      <Metric
-                        label="FC média"
-                        value={averageHr ? `${averageHr.toFixed(0)} bpm` : "-"}
-                      />
-                      <Metric
-                        label="Eficiência"
-                        value={formatEfficiency(averageEfficiency)}
-                      />
-                      <Metric
-                        label="Elevação"
-                        value={`${gear.totalElevation.toFixed(0)} m`}
-                      />
-                      <Metric
-                        label="Último uso"
-                        value={formatBRDate(gear.lastUse)}
-                      />
+                      <Metric label="Km total"         value={`${gear.totalKm.toFixed(1)} km`} />
+                      <Metric label="Treinos"          value={String(gear.activities)} />
+                      <Metric label="Média por corrida" value={`${averageKmPerRun.toFixed(1)} km`} />
+                      <Metric label="Tempo"            value={formatDuration(gear.totalTime)} />
+                      <Metric label="Pace médio"       value={formatLongRunPace(averagePace)} />
+                      <Metric label="FC média"         value={averageHr ? `${averageHr.toFixed(0)} bpm` : "-"} />
+                      <Metric label="Eficiência"       value={formatEfficiency(averageEfficiency)} />
+                      <Metric label="Elevação"         value={`${gear.totalElevation.toFixed(0)} m`} />
+                      <Metric label="Último uso"       value={formatBRDate(gear.lastUse)} />
                     </div>
 
                     <div className="mt-4">
                       <div className="mb-1 flex justify-between text-xs text-gray-600">
                         <span>Desgaste estimado</span>
-                        <span>
-                          {gear.totalKm.toFixed(0)} / {gear.maxKm} km
-                        </span>
+                        <span>{gear.totalKm.toFixed(0)} / {gear.maxKm} km</span>
                       </div>
-
                       <div className="h-2 overflow-hidden rounded-full bg-white/70">
                         <div
                           className={`h-full rounded-full ${wear.bar}`}
