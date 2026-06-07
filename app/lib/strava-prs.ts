@@ -14,7 +14,7 @@
  * como âncora sem deixar performances antigas distorcer para cima.
  */
 
-import { calculateVdot, vo2maxFromVdot, racePacesFromVdot } from "./vdot";
+import { calculateVdot, vo2maxFromVdot, pacesFromVdot } from "./vdot";
 
 type StravaActivity = {
   id: number;
@@ -168,7 +168,7 @@ export async function getDynamicAthleteProfile(accessToken: string) {
     const totalWeight = vdotInputs.reduce((s, x) => s + x.weight, 0);
     const vdot        = vdotInputs.reduce((s, x) => s + x.vdot * x.weight, 0) / totalWeight;
     const vo2max      = vo2maxFromVdot(vdot);
-    const racePaces   = racePacesFromVdot(vdot);
+    const racePaces   = pacesFromVdot(vdot);
 
     const MARGIN = 5;
 
