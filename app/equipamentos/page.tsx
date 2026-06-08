@@ -74,9 +74,18 @@ const MANUAL_GEARS: ManualGear[] = [
   { name: "ASICS Superblast 3",        km: 61.9,  maxKm: 800 },
 ];
 
-function findManualGearByKm(totalKm: number) {
-  const rounded = Number(totalKm.toFixed(1));
-  return MANUAL_GEARS.find((gear) => Math.abs(gear.km - rounded) <= 0.3) ?? null;
+// Mapeamento fixo por gear_id do Strava → nome e vida útil
+// Preencher após ver os IDs no aviso âmbar da página
+const GEAR_MAP: Record<string, { name: string; maxKm: number }> = {};
+
+function findGearInfo(gearId: string): { name: string; maxKm: number } | null {
+  if (GEAR_MAP[gearId]) return GEAR_MAP[gearId];
+  const lower = gearId.toLowerCase();
+  const match = MANUAL_GEARS.find((g) =>
+    lower.includes(g.name.toLowerCase().replace(/\s+/g, ""))
+  );
+  if (match) return { name: match.name, maxKm: match.maxKm };
+  return null;
 }
 
 function extractBrand(name: string) {
