@@ -184,28 +184,34 @@ function halfTimeFromPace(secondsPerKm: number) {
 
 function getCyclePhase(today: Date, raceDate: Date) {
   const days = daysUntil(raceDate);
-  if (days > 112) return { name: "Base",       description: "Consolidar consistência, volume e resistência geral.",                           color: "bg-sky-100 text-sky-700"          };
-  if (days > 56)  return { name: "Construção", description: "Aumentar volume e trazer mais especificidade para a meia maratona.",             color: "bg-amber-100 text-amber-700"      };
-  if (days > 14)  return { name: "Pico",       description: "Bloco mais específico, com longões fortes e sessões-chave.",                    color: "bg-[#e0007a]/10 text-[#b00060]"  };
-  return               { name: "Taper",      description: "Redução de carga para chegar descansado e afiado.",                              color: "bg-emerald-100 text-emerald-700"  };
+  // Fases calibradas para ciclo de meia maratona (~16 semanas)
+  if (days > 77) return { name: "Base",        description: "Consolidar consistência, volume e resistência geral. Foco em rodagem e corridas longas progressivas.",  color: "bg-sky-100 text-sky-700"         };
+  if (days > 35) return { name: "Construção",  description: "Aumentar volume e especificidade para a meia. Longões acima de 16 km e treinos de limiar.",               color: "bg-amber-100 text-amber-700"     };
+  if (days > 14) return { name: "Pico",        description: "Bloco específico com longões de 18–21 km e sessões de pace de prova. Semana mais dura do ciclo.",         color: "bg-[#e0007a]/10 text-[#b00060]"  };
+  return                { name: "Taper",       description: "Redução de carga para chegar descansada e afiada em Buenos Aires.",                                       color: "bg-emerald-100 text-emerald-700" };
 }
 
 function getIdealWeeklyVolume(daysToRace: number) {
-  if (daysToRace > 112) return 24;
-  if (daysToRace > 84)  return 28;
-  if (daysToRace > 56)  return 32;
-  if (daysToRace > 28)  return 35;
-  if (daysToRace > 14)  return 30;
-  return 22;
+  // Volume semanal de referência para um ciclo de meia maratona
+  if (daysToRace > 77) return 30;   // Base: construção progressiva
+  if (daysToRace > 56) return 38;   // Construção: pico de volume
+  if (daysToRace > 35) return 42;   // Construção avançada: semanas mais duras
+  if (daysToRace > 14) return 38;   // Pico: manter volume com qualidade
+  return 25;                         // Taper: redução progressiva
 }
 
 function getReadinessStatus(params: { currentWeekKm: number; idealWeekKm: number; longestRunKm: number; longRuns18Plus: number }) {
   const ratio = params.idealWeekKm > 0 ? params.currentWeekKm / params.idealWeekKm : 0;
-  if (ratio >= 0.9 && params.longestRunKm >= HALF_TARGET_LONG_RUN_KM && params.longRuns18Plus >= 1)
-    return { label: "Verde",    title: "Prontidão forte",         description: "O ciclo está bem alinhado para a meia: volume suficiente, longão específico e boa aderência ao bloco atual.",                              card: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500", text: "text-emerald-700" };
-  if (ratio >= 0.75 && params.longestRunKm >= RELEVANT_LONG_RUN_KM)
-    return { label: "Amarelo",  title: "Prontidão em construção", description: "A base está boa para meia, mas ainda falta consolidar o longão-alvo de 18 km ou aproximar o volume da referência da fase.",              card: "bg-amber-50 border-amber-200",    dot: "bg-amber-500",   text: "text-amber-700"   };
-  return   { label: "Vermelho", title: "Prontidão baixa",         description: "Ainda falta consistência específica de meia maratona: aproximar a semana da meta e construir longões entre 16 e 18 km.", card: "bg-red-50 border-red-200",        dot: "bg-red-500",     text: "text-red-700"     };
+  // Verde: volume na fase + longão ≥18km já feito
+  if (ratio >= 0.85 && params.longestRunKm >= HALF_TARGET_LONG_RUN_KM && params.longRuns18Plus >= 1)
+    return { label: "Verde",    title: "Prontidão forte",         description: "Ciclo bem alinhado: volume na fase, longão de 18 km consolidado e boa aderência ao bloco atual.",                        card: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500", text: "text-emerald-700" };
+  // Amarelo: longão ≥16km ou volume ok mas sem 18km ainda
+  if (ratio >= 0.7 && params.longestRunKm >= 16)
+    return { label: "Amarelo",  title: "Prontidão em construção", description: "Base sólida para a meia, mas ainda falta consolidar o longão-alvo de 18 km ou atingir o volume de referência da fase.", card: "bg-amber-50 border-amber-200",    dot: "bg-amber-500",   text: "text-amber-700"   };
+  // Amarelo fraco: tem longão razoável mas volume baixo
+  if (params.longestRunKm >= 13)
+    return { label: "Amarelo",  title: "Prontidão em construção", description: "Longões em andamento, mas o volume semanal ainda está abaixo da referência da fase. Priorizar consistência.",            card: "bg-amber-50 border-amber-200",    dot: "bg-amber-500",   text: "text-amber-700"   };
+  return   { label: "Vermelho", title: "Prontidão baixa",         description: "Falta consistência específica de meia: volume semanal abaixo do ideal e longões abaixo de 13 km.",                        card: "bg-red-50 border-red-200",        dot: "bg-red-500",     text: "text-red-700"     };
 }
 
 function estimateHalfFromRun(activity: StravaActivity) {
@@ -225,17 +231,24 @@ function estimateHalfFromRun(activity: StravaActivity) {
 // Filtra longões: corridas acima de 13km
 // e retorna o melhor tempo estimado para a meia maratona
 function predictFromLongRun(runs: StravaActivity[]) {
-  const longRuns = runs.filter((a) => {
-    const km = a.distance / 1000;
-    return km >= 13;
-  });
-  if (!longRuns.length) return null;
-  // Pega o melhor (menor tempo estimado) dentre todos os longões
-  const estimates = longRuns
-    .map((r) => ({ run: r, est: estimateHalfFromRun(r) }))
-    .filter((x): x is { run: StravaActivity; est: number } => x.est !== null);
-  if (!estimates.length) return null;
-  return estimates.reduce((a, b) => (a.est <= b.est ? a : b));
+  // Usa Riegel puro (1.06) para projetar meia a partir de longões ≥13km
+  // Pesos por distância: longão ≥18km (mais confiável) tem peso dobrado
+  const candidates = runs
+    .filter((a) => a.distance / 1000 >= 13)
+    .map((r) => {
+      const km  = r.distance / 1000;
+      const est = estimateHalfFromRun(r);
+      if (!est) return null;
+      // Longões mais próximos da distância-alvo têm mais peso
+      const weight = km >= 18 ? 2.0 : km >= 16 ? 1.5 : 1.0;
+      return { run: r, est, weight };
+    })
+    .filter((x): x is { run: StravaActivity; est: number; weight: number } => x !== null);
+
+  if (!candidates.length) return null;
+
+  // Retorna o melhor estimado (menor tempo = mais rápido)
+  return candidates.reduce((a, b) => (a.est <= b.est ? a : b));
 }
 
 function predictByTrainingModel(params: { runs: StravaActivity[]; weeklyData: { label: string; distanceKm: number }[]; targetWeeklyKm: number; targetLongRunKm: number }) {
@@ -432,7 +445,8 @@ export default async function BuenosAiresPage() {
   const idealWeekKm              = getIdealWeeklyVolume(daysToRace);
   const weekVsIdealDifference    = currentWeekKm - idealWeekKm;
 
-  const readiness            = getReadinessStatus({ currentWeekKm, idealWeekKm, longestRunKm, longRuns18Plus: longRuns.filter((a) => a.distance >= HALF_TARGET_LONG_RUN_KM * 1000).length });
+  const longRuns18Plus       = runs.filter((a) => a.distance >= HALF_TARGET_LONG_RUN_KM * 1000).length;
+  const readiness            = getReadinessStatus({ currentWeekKm, idealWeekKm, longestRunKm, longRuns18Plus });
   const longRunResult        = predictFromLongRun(runs);
   const predictedFromLongRun = longRunResult?.est ?? null;
   const bestLongRun          = longRunResult?.run ?? null;
@@ -638,8 +652,10 @@ export default async function BuenosAiresPage() {
               </div>
               <div className="mt-4 rounded-2xl bg-[#e0007a]/10 p-4">
                 <p className="text-sm font-medium text-[#b00060]">FC alvo em Buenos Aires</p>
-                <p className="mt-1 text-2xl font-bold text-[#8a1452]">155–167 bpm</p>
-                <p className="mt-1 text-sm text-[#e0007a]">Zona de potência aeróbica → limiar. Próximo ao limiar de lactato.</p>
+                <p className="mt-1 text-2xl font-bold text-[#8a1452]">
+                  {athleteProfile ? `${Math.round((athleteProfile.vo2max ?? 44) * 0.83 * 187 / 44)}–${Math.round((athleteProfile.vo2max ?? 44) * 0.92 * 187 / 44)} bpm` : "158–175 bpm"}
+                </p>
+                <p className="mt-1 text-sm text-[#e0007a]">Zona aeróbica → limiar (83–92% FCmáx). Ritmo sustentável para 21 km.</p>
               </div>
             </div>
 
@@ -682,7 +698,7 @@ export default async function BuenosAiresPage() {
                   {vdot && <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-medium text-blue-800">VDOT {vdot.toFixed(1)} · PRs Strava</span>}
                 </div>
                 <p className="mt-2 text-2xl font-bold text-blue-900">{formatDurationShort(realisticHalfRange.minTime)}–{formatDurationShort(realisticHalfRange.maxTime)}</p>
-                <p className="mt-1 text-sm text-blue-700">Pace {formatSecondsPerKm(realisticHalfRange.minSecondsPerKm)}–{formatSecondsPerKm(realisticHalfRange.maxSecondsPerKm)} · baseado em 10 km real, limiar de 5:32/km e VDOT com ajuste conservador.</p>
+                <p className="mt-1 text-sm text-blue-700">Pace {formatSecondsPerKm(realisticHalfRange.minSecondsPerKm)}–{formatSecondsPerKm(realisticHalfRange.maxSecondsPerKm)} · baseado nos PRs do Strava e VDOT {vdot?.toFixed(1)} com margem conservadora.</p>
                 {predictedFromVdotRange && <p className="mt-2 text-xs text-blue-600">VDOT bruto: {formatDurationShort(predictedFromVdotRange.min)}–{formatDurationShort(predictedFromVdotRange.max)}. Usado apenas como teto de potencial, não como previsão direta de prova.</p>}
               </div>
             </div>
@@ -733,7 +749,7 @@ export default async function BuenosAiresPage() {
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-2xl app-card-soft p-5">
               <p className="text-sm text-gray-500">Leitura do momento</p>
-              <p className="mt-2 text-sm leading-6 text-gray-700">O alvo configurado está em <span className="font-semibold">{targetPaceLabel}</span>, projetando <span className="font-semibold">{formatFullDuration(targetPredictionSeconds)}</span>. Hoje, o ciclo está em <span className="font-semibold">{cyclePhase.name}</span> e o semáforo está em <span className={`font-semibold ${readiness.text}`}>{readiness.label}</span>.</p>
+              <p className="mt-2 text-sm leading-6 text-gray-700">Alvo de <span className="font-semibold">{targetPaceLabel}</span> projeta <span className="font-semibold">{formatFullDuration(targetPredictionSeconds)}</span> em Buenos Aires ({daysToRace} dias). Ciclo em <span className="font-semibold">{cyclePhase.name}</span> — semáforo <span className={`font-semibold ${readiness.text}`}>{readiness.label}</span>. Longão mais longo: <span className="font-semibold">{longestRunKm.toFixed(1)} km</span>.</p>
             </div>
             <div className="rounded-2xl app-card-soft p-5">
               <p className="text-sm text-gray-500">Planejado x executado</p>
