@@ -100,7 +100,7 @@ export default function HalfMarathonProjection({ longRuns, weeksToRace, races = 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef  = useRef<Chart | null>(null);
 
-  const [nLongRuns,    setNLongRuns]    = useState(5);
+  const [nLongRuns,    setNLongRuns]    = useState(3);
   const [pacingFactor, setPacingFactor] = useState(1.04);
 
   const data = useMemo(() => {

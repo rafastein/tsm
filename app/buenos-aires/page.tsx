@@ -67,7 +67,7 @@ async function getActivities(): Promise<StravaActivity[]> {
 
     // Busca os últimos 6 meses paginando (200/página) para garantir que
     // os longões mais antigos sejam incluídos
-    const after = Math.floor((Date.now() - 365 * 24 * 3600 * 1000) / 1000);
+    const after = Math.floor((Date.now() - 180 * 24 * 3600 * 1000) / 1000);
     const all: StravaActivity[] = [];
     const perPage = 200;
 
@@ -551,11 +551,13 @@ export default async function BuenosAiresPage() {
   );
 
   // ── Dados para a calculadora de projeção ──────────────────────────────────
+  // Longões para a calculadora: últimos 6 meses, ≥13km, ordenados do mais antigo ao mais recente
+  const sixMonthsAgo = Date.now() - 180 * 24 * 3600 * 1000;
   const projRunsBase = runs
     .filter((a) => {
       const km = a.distance / 1000;
-      const n  = a.name.toLowerCase();
-      return a.distance / 1000 >= PROJECTION_LONG_RUN_MIN_KM;
+      const actDate = new Date(getActivityDate(a)).getTime();
+      return km >= PROJECTION_LONG_RUN_MIN_KM && actDate >= sixMonthsAgo;
     })
     .sort((a, b) => new Date(getActivityDate(a)).getTime() - new Date(getActivityDate(b)).getTime());
 
