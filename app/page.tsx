@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { formatBRDate } from "./lib/date-utils";
 import ActivitiesPanel from "./components/ActivitiesPanel";
+import SeasonCalendar from "./components/SeasonCalendar";
 import TodayWorkoutCard from "./components/TodayWorkoutCard";
 import WeeklyGoalCard from "./components/WeeklyGoalCard";
 import NextRaceCard from "./components/NextRaceCard";
@@ -377,6 +378,11 @@ export default async function Home() {
             progressPct={weeklyAdherencePct}
             alerts={alerts}
           />
+        </section>
+
+        {/* Calendário da temporada */}
+        <section className="mb-8">
+          <SeasonCalendar />
         </section>
 
         {/* Próxima prova */}
