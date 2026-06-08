@@ -71,9 +71,8 @@ export function pacesFromVdot(vdot: number): {
   marathon: number;
 } {
   function estimatePace(distanceM: number): number {
-    // Busca binária: acha o tempo (em s) que produz o vdot informado
-    let lo = distanceM / 10; // tempo mínimo absurdo
-    let hi = distanceM / 1;  // tempo máximo absurdo (1 m/s)
+    let lo = distanceM / 10;
+    let hi = distanceM / 1;
 
     for (let i = 0; i < 60; i++) {
       const mid = (lo + hi) / 2;
@@ -97,23 +96,62 @@ export function pacesFromVdot(vdot: number): {
 
 /**
  * Dado um VDOT, retorna os paces de treino clássicos de Daniels (s/km):
- * Easy, Marathon, Threshold, Interval, Repetition.
+ * Easy (E), Marathon (M), Threshold (T), Interval (I), Repetition (R).
+ *
+ * Metodologia: Daniels define cada zona como um % do VO2max.
+ * Para converter % VO2max → pace, usa resolução analítica da fórmula inversa:
+ * encontra a velocidade v tal que vo2FromVelocity(v) = pct * vdot.
+ *
+ * Referência: Daniels' Running Formula, 3ª edição.
+ * E:  59–74% VDOT (faixa de corrida fácil/longo)
+ * M:  pace de maratona calculado diretamente
+ * T:  83–88% VDOT (threshold/tempo — "comfortably hard")
+ * I:  97–100% VDOT (intervalado — ≈ pace 5km de corrida séria)
+ * R:  105–120% VDOT (repetição — mais rápido que I, esforço neuromuscular)
  */
 export function trainingPacesFromVdot(vdot: number): {
-  easy: { min: number; max: number };
-  marathon: { min: number; max: number };
-  threshold: number;
-  interval: number;
+  easy:       { min: number; max: number };
+  marathon:   { min: number; max: number };
+  threshold:  { min: number; max: number };
+  interval:   number;
   repetition: number;
 } {
+  // Converte % VDOT → pace (s/km) via resolução analítica
+  // Resolve: vo2FromVelocity(v) = pct * vdot → equação de 2º grau em v
+  function paceFromPctVdot(pct: number): number {
+    const targetVO2 = pct * vdot;
+    const a = 0.000104;
+    const b = 0.182258;
+    const c = -(4.60 + targetVO2);
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) return 0;
+    const vMetersPerMin = (-b + Math.sqrt(discriminant)) / (2 * a);
+    if (vMetersPerMin <= 0) return 0;
+    return Math.round((1000 / vMetersPerMin) * 60);
+  }
+
   const race = pacesFromVdot(vdot);
 
   return {
-    easy:      { min: Math.round(race.marathon * 1.20), max: Math.round(race.marathon * 1.29) },
-    marathon:  { min: Math.round(race.marathon * 1.00), max: Math.round(race.marathon * 1.05) },
-    threshold: Math.round(race.km10 * 1.07),
-    interval:  Math.round(race.km5 * 1.01),
-    repetition:Math.round(race.km5 * 0.95),
+    // Easy: 59–74% VDOT
+    easy: {
+      min: paceFromPctVdot(0.74), // mais rápido (74%)
+      max: paceFromPctVdot(0.59), // mais lento (59%)
+    },
+    // Marathon: pace direto ±5s/km
+    marathon: {
+      min: race.marathon - 5,
+      max: race.marathon + 5,
+    },
+    // Threshold: 83–88% VDOT
+    threshold: {
+      min: paceFromPctVdot(0.88), // mais rápido
+      max: paceFromPctVdot(0.83), // mais lento
+    },
+    // Interval: 97–100% VDOT
+    interval: paceFromPctVdot(0.98),
+    // Repetition: 105% VDOT
+    repetition: paceFromPctVdot(1.05),
   };
 }
 

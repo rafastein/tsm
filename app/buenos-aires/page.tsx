@@ -6,6 +6,7 @@ import Link from "next/link";
 import HalfMarathonProjection from "../components/HalfMarathonProjection";
 import { getValidStravaAccessToken } from "../lib/strava-auth";
 import { getDynamicAthleteProfile, formatPrTime } from "../lib/strava-prs";
+import { trainingPacesFromVdot } from "../lib/vdot";
 import {
   getSisrunData,
   getCurrentWeek,
@@ -437,9 +438,10 @@ export default async function BuenosAiresPage() {
   const bestLongRun          = longRunResult?.run ?? null;
   const predictedBySite      = predictByTrainingModel({ runs, weeklyData, targetWeeklyKm: halfMarathonGoal.targetWeeklyKm, targetLongRunKm: halfMarathonGoal.targetLongRunKm });
   // Derivados do athleteProfile — precisam estar antes de predictedFromVdotRange e realisticHalfRange
-  const vdot         = athleteProfile?.vdot ?? null;
-  const vo2max       = athleteProfile?.vo2max ?? null;
-  const halfPaces    = athleteProfile?.paces.half ?? null;
+  const vdot          = athleteProfile?.vdot ?? null;
+  const vo2max        = athleteProfile?.vo2max ?? null;
+  const halfPaces     = athleteProfile?.paces.half ?? null;
+  const trainingPaces = vdot ? trainingPacesFromVdot(vdot) : null;
 
   // VDOT dinâmico via athleteProfile — substitui predictFromVdot(config) e getRealisticHalfPaceRange(config)
   const predictedFromVdotRange = halfPaces
@@ -646,10 +648,11 @@ export default async function BuenosAiresPage() {
               <p className="mt-1 text-sm text-gray-500">Referências de Daniels derivadas do VDOT {vdot.toFixed(1)}.</p>
               <div className="mt-5 space-y-2">
                 {[
-                  { label: "Regenerativo / Fácil", pace: halfPaces ? `${formatSecondsPerKm(Math.round(halfPaces.max * 1.15))}–${formatSecondsPerKm(Math.round(halfPaces.max * 1.22))}` : "—", desc: "Z1–Z2", color: "bg-white/55" },
+                  { label: "Regenerativo / Fácil", pace: trainingPaces ? `${formatSecondsPerKm(trainingPaces.easy.min)}–${formatSecondsPerKm(trainingPaces.easy.max)}` : "—", desc: "59–74% VDOT", color: "bg-white/55" },
                   { label: "Pace de meia maratona", pace: halfPaces ? `${formatSecondsPerKm(halfPaces.min)}–${formatSecondsPerKm(halfPaces.max)}` : "—", desc: "Z3–Z4", color: "bg-[#e0007a]/10 ring-1 ring-[#e0007a]/20" },
-                  { label: "Limiar (Threshold)",   pace: athleteProfile.paces.km10 ? formatSecondsPerKm(Math.round(athleteProfile.paces.km10 * 1.07)) : "—", desc: "Z4", color: "bg-white/55" },
-                  { label: "Intervalado (VO2max)", pace: athleteProfile.paces.km5 ? formatSecondsPerKm(athleteProfile.paces.km5) : "—", desc: "Z5", color: "bg-white/55" },
+                  { label: "Limiar (Threshold)",   pace: trainingPaces ? `${formatSecondsPerKm(trainingPaces.threshold.min)}–${formatSecondsPerKm(trainingPaces.threshold.max)}` : "—", desc: "83–88% VDOT", color: "bg-white/55" },
+                  { label: "Intervalado (VO2max)", pace: trainingPaces ? formatSecondsPerKm(trainingPaces.interval) : "—", desc: "97–100% VDOT", color: "bg-white/55" },
+                  { label: "Repetição",            pace: trainingPaces ? formatSecondsPerKm(trainingPaces.repetition) : "—", desc: "105% VDOT", color: "bg-white/55" },
                 ].map((row) => (
                   <div key={row.label} className={`flex items-center justify-between rounded-2xl p-3 ${row.color}`}>
                     <div>

@@ -10,6 +10,7 @@ import {
   getLongRunSummary,
   getLongRunsFromActivities,
 } from "../lib/strava-long-runs";
+import HalfMarathonProjection from "../components/HalfMarathonProjection";
 
 type StravaActivity = {
   id: number;
@@ -139,6 +140,22 @@ export default async function LongoesPage() {
     lastLongRun?.efficiency,
     previousLongRun?.efficiency
   );
+
+  // Dados para a calculadora de projeção
+  const RACE_DATE = new Date("2026-08-23T06:00:00");
+  const daysToRace = Math.ceil((RACE_DATE.getTime() - Date.now()) / 86400000);
+  const weeksToRace = Math.max(1, Math.ceil(daysToRace / 7));
+
+  const projectionLongRuns = longRuns
+    .filter((r) => r.paceSecPerKm !== null)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map((r) => ({
+      date: r.date,
+      km: r.distanceKm,
+      paceSeconds: r.paceSecPerKm as number,
+      efficiency: r.efficiency,
+      fc: r.averageHeartrate,
+    }));
 
   return (
     <main className="min-h-screen app-page-bg p-6 md:p-10">
@@ -324,6 +341,15 @@ export default async function LongoesPage() {
             </div>
           )}
         </section>
+
+        {projectionLongRuns.length >= 3 && (
+          <section className="mt-8">
+            <HalfMarathonProjection
+              longRuns={projectionLongRuns}
+              weeksToRace={weeksToRace}
+            />
+          </section>
+        )}
       </div>
     </main>
   );
