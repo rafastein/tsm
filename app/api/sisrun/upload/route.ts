@@ -13,30 +13,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Arquivo não enviado." }, { status: 400 });
     }
 
-    const validExtensions = [".xls", ".xlsx"];
     const lowerName = file.name.toLowerCase();
-
-    if (!validExtensions.some((ext) => lowerName.endsWith(ext))) {
-      return NextResponse.json(
-        { error: "Envie um arquivo .xls ou .xlsx" },
-        { status: 400 }
-      );
+    if (!lowerName.endsWith(".xls") && !lowerName.endsWith(".xlsx")) {
+      return NextResponse.json({ error: "Envie um arquivo .xls ou .xlsx" }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const parsedData = parseSisrunWorkbook(workbook, file.name);
 
-    const outputDir = path.join(process.cwd(), "data");
-    const outputFile = path.join(outputDir, "sisrun-latest.json");
-
-    await fs.mkdir(outputDir, { recursive: true });
-    await fs.writeFile(outputFile, JSON.stringify(parsedData, null, 2), "utf-8");
+    const dir = path.join(process.cwd(), "data");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "sisrun-latest.json"),
+      JSON.stringify(parsedData, null, 2),
+      "utf-8"
+    );
 
     return NextResponse.json({
       success: true,
+      storage: "file",
       fileName: parsedData.fileName,
       athleteName: parsedData.athleteName,
       weeks: parsedData.weeks.length,
@@ -44,12 +41,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Erro ao processar planilha do SisRUN:", error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Falha ao processar a planilha do SisRUN.";
-
+    const message = error instanceof Error ? error.message : "Falha ao processar a planilha do SisRUN.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
