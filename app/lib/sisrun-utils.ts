@@ -74,7 +74,7 @@ function getDateKey(date: Date) {
   return date.toLocaleDateString("sv-SE");
 }
 
-const SISRUN_KEY = "sisrun:latest";
+const SISRUN_KEY = "sisrun:tsm:latest";
 
 export async function getSisrunData(): Promise<SisrunParsedData | null> {
   try {

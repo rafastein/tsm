@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { parseSisrunWorkbook } from "@/app/lib/sisrun-xls-parser";
 
-const SISRUN_KEY = "sisrun:latest";
+const SISRUN_KEY = "sisrun:tsm:latest";
 
 export async function POST(req: Request) {
   try {
