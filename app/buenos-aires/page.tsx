@@ -470,6 +470,21 @@ export default async function BuenosAiresPage() {
     .sort((a, b) => a.moving_time - b.moving_time)[0] ?? null;
   const predictedFromHalfRace = predictFromHalfRace(bestHalfRace);
 
+  // Provas para plotar no gráfico da calculadora (9.5–22.5 km, pace razoável)
+  const racePointsForProjection = runs
+    .filter((a) => {
+      const km = a.distance / 1000;
+      return km >= 9.5 && km <= 22.5;
+    })
+    .map((a) => ({
+      date:       a.start_date_local,
+      name:       a.name,
+      distanceKm: a.distance / 1000,
+      paceSeconds: Math.round(a.moving_time / (a.distance / 1000)),
+    }))
+    .filter((r) => r.paceSeconds > 200 && r.paceSeconds < 500)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
   const weekMap = new Map<string, { label: string; distanceKm: number }>();
   runs.forEach((a) => {
     const date = getBRDate(getActivityDate(a));
@@ -818,7 +833,7 @@ export default async function BuenosAiresPage() {
         {/* ─── CALCULADORA DE PROJEÇÃO ─────────────────────────────────────── */}
         {projectionLongRuns.length >= 3 && (
           <section className="mb-8">
-            <HalfMarathonProjection longRuns={projectionLongRuns} weeksToRace={weeksToRace} />
+            <HalfMarathonProjection longRuns={projectionLongRuns} weeksToRace={weeksToRace} races={racePointsForProjection} />
           </section>
         )}
 
