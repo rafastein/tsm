@@ -149,7 +149,7 @@ const HALF_TARGET_PACE_SECONDS_PER_KM = 340;
 const HALF_TARGET_WEEKLY_KM = 35;
 const HALF_TARGET_LONG_RUN_KM = 18;
 const RELEVANT_LONG_RUN_KM = 13; // longões = corridas acima de 13km
-const PROJECTION_LONG_RUN_MIN_KM = 8;
+const PROJECTION_LONG_RUN_MIN_KM = 13; // mínimo para entrar na calculadora (igual ao RELEVANT_LONG_RUN_KM)
 
 // Paces de referência vêm do athleteProfile dinâmico — sem hardcode
 
@@ -242,29 +242,78 @@ function predictFromLongRun(runs: StravaActivity[]) {
   return candidates.reduce((a, b) => (a.est <= b.est ? a : b));
 }
 
-function predictByTrainingModel(params: { runs: StravaActivity[]; weeklyData: { label: string; distanceKm: number }[]; targetWeeklyKm: number; targetLongRunKm: number }) {
-  const scored = params.runs
-    .map((run) => {
-      const km = run.distance / 1000;
-      const est = estimateHalfFromRun(run);
-      if (!est) return null;
-      let w = km >= 18 && km <= 22.5 ? 5 : km >= 14 ? 3.5 : km >= 10 ? 2 : 1.25;
-      const daysAgo = Math.max(0, (Date.now() - new Date(getActivityDate(run)).getTime()) / 86400000);
-      w *= daysAgo <= 45 ? 1.25 : daysAgo <= 90 ? 1 : 0.85;
-      return { est, w, km };
-    })
-    .filter((x): x is { est: number; w: number; km: number } => Boolean(x))
-    .sort((a, b) => a.est - b.est)
-    .slice(0, 8);
+// Penalidade pelo longão mais longo — calibrada para meia maratona
+// Referência: longão de 18km = prontidão completa
+function getLongRunPenaltySeconds(longestRunKm: number): number {
+  if (longestRunKm >= 20) return -2 * 60;   // acima da distância-alvo: bônus
+  if (longestRunKm >= 18) return  0;          // no alvo: sem penalidade
+  if (longestRunKm >= 16) return  3 * 60;
+  if (longestRunKm >= 14) return  6 * 60;
+  if (longestRunKm >= 13) return  9 * 60;
+  return 14 * 60;                              // < 13km: penalidade máxima
+}
 
-  if (!scored.length) return null;
-  let pred = Math.round(scored.reduce((s, x) => s + x.est * x.w, 0) / scored.reduce((s, x) => s + x.w, 0));
-  const avgWeekly = params.weeklyData.length ? params.weeklyData.reduce((s, x) => s + x.distanceKm, 0) / params.weeklyData.length : 0;
-  const maxKm = params.runs.reduce((m, r) => Math.max(m, r.distance / 1000), 0);
-  const ratio = params.targetWeeklyKm > 0 ? avgWeekly / params.targetWeeklyKm : 0;
-  if (ratio >= 0.9) pred -= 45; else if (ratio >= 0.75) pred -= 20; else if (ratio < 0.5) pred += 90; else if (ratio < 0.7) pred += 45;
-  if (maxKm >= params.targetLongRunKm) pred -= 30; else pred += Math.round((params.targetLongRunKm - maxKm) * 20);
-  return Math.max(pred, halfTimeFromPace(240));
+// Penalidade pelo volume médio semanal — calibrada para meia maratona
+// Referência: 38–42km/semana = prontidão de meia
+function getVolumePenaltySeconds(avgWeeklyKm: number): number {
+  if (avgWeeklyKm >= 45) return -2 * 60;   // acima do alvo: bônus leve
+  if (avgWeeklyKm >= 38) return  0;
+  if (avgWeeklyKm >= 30) return  3 * 60;
+  if (avgWeeklyKm >= 22) return  7 * 60;
+  if (avgWeeklyKm >= 14) return 12 * 60;
+  return 18 * 60;
+}
+
+function getProjectionConfidence(longestRunKm: number, avgWeeklyKm: number): "Alta" | "Média" | "Baixa" {
+  if (longestRunKm >= 18 && avgWeeklyKm >= 35) return "Alta";
+  if (longestRunKm >= 14 && avgWeeklyKm >= 25) return "Média";
+  return "Baixa";
+}
+
+function predictByTrainingModel(params: {
+  bestHalfRace: StravaActivity | null;
+  longestRun: StravaActivity | null;
+  weeklyData: { label: string; distanceKm: number }[];
+}): { seconds: number | null; confidence: "Alta" | "Média" | "Baixa"; caption: string } {
+  const halfP    = predictFromHalfRace(params.bestHalfRace);
+  const longRunP = params.longestRun ? estimateHalfFromRun(params.longestRun) : null;
+
+  const avgWeekly  = params.weeklyData.length
+    ? params.weeklyData.reduce((s, x) => s + x.distanceKm, 0) / params.weeklyData.length
+    : 0;
+  const longestRunKm      = params.longestRun ? params.longestRun.distance / 1000 : 0;
+  const longRunPenalty    = getLongRunPenaltySeconds(longestRunKm);
+  const volumePenalty     = getVolumePenaltySeconds(avgWeekly);
+  const totalPenalty      = Math.min(Math.max(longRunPenalty + volumePenalty, -3 * 60), 20 * 60);
+  const confidence        = getProjectionConfidence(longestRunKm, avgWeekly);
+
+  function penaltyLabel(s: number) {
+    const m = Math.round(Math.abs(s) / 60);
+    return s < 0 ? `-${m}min` : s > 0 ? `+${m}min` : "0min";
+  }
+
+  if (halfP !== null) {
+    return {
+      seconds: halfP + totalPenalty,
+      confidence,
+      caption: `confiança ${confidence.toLowerCase()} · meia real + ajuste ${penaltyLabel(totalPenalty)}`,
+    };
+  }
+
+  if (longRunP !== null) {
+    const volOnly = Math.min(Math.max(volumePenalty, 0), 10 * 60);
+    return {
+      seconds: longRunP + volOnly,
+      confidence,
+      caption: `confiança ${confidence.toLowerCase()} · longão ${longestRunKm.toFixed(1)}km · ajuste ${penaltyLabel(volOnly)}`,
+    };
+  }
+
+  return {
+    seconds: null,
+    confidence: "Baixa",
+    caption: "aguardando meia ou longão ≥13km",
+  };
 }
 
 // getRealisticHalfPaceRange e predictFromVdot foram substituídos pelo athleteProfile dinâmico
@@ -331,9 +380,7 @@ function buildProjectionLongRuns(runs: StravaActivity[], enriched: StravaActivit
   const map = new Map(enriched.map((r) => [r.id, r]));
   return runs
     .filter((a) => {
-      const km = a.distance / 1000;
-      const n = a.name.toLowerCase();
-      return km >= PROJECTION_LONG_RUN_MIN_KM && (n.includes("long") || n.includes("longão") || n.includes("longao") || km >= 10);
+      return a.distance / 1000 >= PROJECTION_LONG_RUN_MIN_KM;
     })
     .sort((a, b) => new Date(getActivityDate(a)).getTime() - new Date(getActivityDate(b)).getTime())
     .map((run) => {
@@ -457,7 +504,10 @@ export default async function BuenosAiresPage() {
   const longRunResult        = predictFromLongRun(runs);
   const predictedFromLongRun = longRunResult?.est ?? null;
   const bestLongRun          = longRunResult?.run ?? null;
-  const predictedBySite      = predictByTrainingModel({ runs, weeklyData, targetWeeklyKm: halfMarathonGoal.targetWeeklyKm, targetLongRunKm: halfMarathonGoal.targetLongRunKm });
+  const siteModel        = predictByTrainingModel({ bestHalfRace, longestRun, weeklyData });
+  const predictedBySite  = siteModel.seconds;
+  const siteModelCaption = siteModel.caption;
+  const siteModelConfidence = siteModel.confidence;
   // Derivados do athleteProfile — precisam estar antes de predictedFromVdotRange e realisticHalfRange
   const vdot          = athleteProfile?.vdot ?? null;
   const vo2max        = athleteProfile?.vo2max ?? null;
@@ -490,7 +540,7 @@ export default async function BuenosAiresPage() {
     .filter((a) => {
       const km = a.distance / 1000;
       const n  = a.name.toLowerCase();
-      return km >= PROJECTION_LONG_RUN_MIN_KM && (n.includes("long") || n.includes("longão") || n.includes("longao") || km >= 10);
+      return a.distance / 1000 >= PROJECTION_LONG_RUN_MIN_KM;
     })
     .sort((a, b) => new Date(getActivityDate(a)).getTime() - new Date(getActivityDate(b)).getTime());
 
@@ -718,7 +768,7 @@ export default async function BuenosAiresPage() {
 
               <ProjectionCard title="Pelo pace-alvo" value={formatFullDuration(targetPredictionSeconds)} caption={targetPaceLabel} />
               <ProjectionCard title="Pelo melhor longão (6 meses)" value={predictedFromLongRun && bestLongRun ? formatFullDuration(predictedFromLongRun) : "Sem dado"} caption={predictedFromLongRun && bestLongRun ? `${bestLongRun.name} • ${(bestLongRun.distance / 1000).toFixed(1)} km` : "Nenhum longão encontrado nos últimos 6 meses."} />
-              <ProjectionCard title="Modelo híbrido (site)" value={predictedBySite ? formatFullDuration(predictedBySite) : "Sem dado"} caption={predictedBySite ? "Treinos feitos, longão e consistência semanal." : "Dados insuficientes."} highlight />
+              <ProjectionCard title="Modelo híbrido (site)" value={predictedBySite ? formatFullDuration(predictedBySite) : "Sem dado"} caption={siteModelCaption} badge={siteModelConfidence} highlight />
 
               <div className="rounded-2xl app-card-soft p-4 ring-1 ring-blue-200">
                 <div className="flex items-start justify-between gap-2">
