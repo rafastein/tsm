@@ -325,17 +325,17 @@ export default async function EquipamentosPage() {
 
   const grouped = rawGrouped
     .map((gear) => {
-      const manualGear = findManualGearByKm(gear.totalKm);
-      if (!manualGear) return null;
+      const info = findGearInfo(gear.gearId);
+      // Se não encontrou no mapa, exibe com o gear_id como nome e maxKm padrão de 600km
+      const name  = info?.name  ?? `Tênis (${gear.gearId})`;
+      const maxKm = info?.maxKm ?? 600;
       return {
         ...gear,
-        name: manualGear.name,
-        brand: extractBrand(manualGear.name),
-        totalKm: manualGear.km,
-        maxKm: manualGear.maxKm,
+        name,
+        brand:  extractBrand(name),
+        maxKm,
       };
     })
-    .filter((gear): gear is GearSummary => gear !== null)
     .sort((a, b) => b.totalKm - a.totalKm);
 
   const recommendationTypes: WorkoutType[] = [
@@ -372,10 +372,28 @@ export default async function EquipamentosPage() {
           </Link>
         </div>
 
+        {/* Debug temporário — remove depois de mapear os IDs */}
+        {rawGrouped.some((g) => !findGearInfo(g.gearId)) && (
+          <section className="app-card mb-4 p-4 border border-amber-200 bg-amber-50">
+            <p className="text-xs font-semibold text-amber-700 mb-2">
+              ⚠️ Tênis sem mapeamento — copie os IDs abaixo e atualize o GEAR_MAP:
+            </p>
+            <div className="font-mono text-xs text-amber-800 space-y-1">
+              {rawGrouped
+                .filter((g) => !findGearInfo(g.gearId))
+                .map((g) => (
+                  <p key={g.gearId}>
+                    &quot;{g.gearId}&quot;: {"{"} name: &quot;???&quot;, maxKm: 800 {"}"},  // {g.totalKm.toFixed(1)} km
+                  </p>
+                ))}
+            </div>
+          </section>
+        )}
+
         {grouped.length === 0 ? (
           <section className="app-card p-6">
             <p className="text-sm text-gray-600">
-              Nenhum equipamento foi associado pela quilometragem informada.
+              Nenhum equipamento encontrado no Strava.
             </p>
           </section>
         ) : (
