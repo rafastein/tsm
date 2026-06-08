@@ -10,18 +10,26 @@ const GOAL_RACE = {
   distanceKm: 21.1,
 };
 
-function formatRaceDate(isoDate: string): string {
-  const d = new Date(isoDate + "T12:00:00");
+// Normaliza qualquer formato de data para um objeto Date confiável
+// Suporta: "YYYY-MM-DD", "YYYY-MM-DDTHH:MM:SSZ", "YYYY-MM-DDTHH:MM:SS"
+function parseDate(raw: string): Date {
+  // Pega só os primeiros 10 chars (YYYY-MM-DD) e adiciona hora do meio-dia em Brasília
+  const dateOnly = raw.slice(0, 10);
+  return new Date(dateOnly + "T12:00:00-03:00");
+}
+
+function formatRaceDate(raw: string): string {
+  const d = parseDate(raw);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getMonthLabel(isoDate: string): string {
+function getMonthLabel(raw: string): string {
   const months = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
-  return months[new Date(isoDate + "T12:00:00").getMonth()];
+  return months[parseDate(raw).getMonth()];
 }
 
-function isSemester1(isoDate: string): boolean {
-  return new Date(isoDate + "T12:00:00").getMonth() < 6;
+function isSemester1(raw: string): boolean {
+  return parseDate(raw).getMonth() < 6;
 }
 
 type EventItem = {
@@ -65,10 +73,10 @@ export default async function SeasonCalendar() {
       distanceKm: r.distanceKm,
       time:      r.time,
     }))
-    .sort((a, b) => a.isoDate.localeCompare(b.isoDate));
+    .sort((a, b) => parseDate(a.isoDate).getTime() - parseDate(b.isoDate).getTime());
 
   // Adicionar objetivo fixo se ainda não foi corrido
-  const goalTs  = new Date(GOAL_RACE.isoDate + "T12:00:00").getTime();
+  const goalTs  = parseDate(GOAL_RACE.isoDate).getTime();
   const goalDone = stravaEvents.some((e) => e.isoDate === GOAL_RACE.isoDate);
   const goalEvent: EventItem = {
     key:       "goal-buenos-aires",
@@ -83,7 +91,7 @@ export default async function SeasonCalendar() {
 
   if (!goalDone) stravaEvents.push(goalEvent);
 
-  const allEvents = stravaEvents.sort((a, b) => a.isoDate.localeCompare(b.isoDate));
+  const allEvents = stravaEvents.sort((a, b) => parseDate(a.isoDate).getTime() - parseDate(b.isoDate).getTime());
   const s1 = allEvents.filter((e) => e.semester === 1);
   const s2 = allEvents.filter((e) => e.semester === 2);
 
