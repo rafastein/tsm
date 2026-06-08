@@ -56,25 +56,7 @@ type VdotPaceRange = {
   maxSecondsPerKm: number;
 };
 
-type AthleteConfig = {
-  hrMax: number;
-  hrRest: number;
-  lactateThreshold: number;
-  vdot: number;
-  vo2max: number;
-  sex: "mulher" | "homem";
-  age: number;
-  heightM: number;
-  weightKg: number;
-  vo2maxSources: string[];
-  hrZones: HrZone[];
-  vdotPaces: {
-    marathon: VdotPaceRange;
-    halfMarathon: VdotPaceRange;
-    10: VdotPaceRange;
-    5: VdotPaceRange;
-  };
-};
+// AthleteConfig removido — VDOT e paces vêm do athleteProfile dinâmico via getDynamicAthleteProfile
 
 // ─── Data fetchers ────────────────────────────────────────────────────────────
 
@@ -169,8 +151,7 @@ const HALF_TARGET_LONG_RUN_KM = 18;
 const RELEVANT_LONG_RUN_KM = 13; // longões = corridas acima de 13km
 const PROJECTION_LONG_RUN_MIN_KM = 8;
 
-const REFERENCE_THRESHOLD_PACE_SECONDS_PER_KM = 332;
-const REFERENCE_10K_PACE_SECONDS_PER_KM = 348;
+// Paces de referência vêm do athleteProfile dinâmico — sem hardcode
 
 // ─── Business logic ───────────────────────────────────────────────────────────
 
@@ -286,44 +267,54 @@ function predictByTrainingModel(params: { runs: StravaActivity[]; weeklyData: { 
   return Math.max(pred, halfTimeFromPace(240));
 }
 
-function getRealisticHalfPaceRange(config: AthleteConfig | null) {
-  const from10kMin = REFERENCE_10K_PACE_SECONDS_PER_KM + 12;
-  const from10kMax = REFERENCE_10K_PACE_SECONDS_PER_KM + 27;
-  const fromThresholdMin = REFERENCE_THRESHOLD_PACE_SECONDS_PER_KM + 25;
-  const fromThresholdMax = REFERENCE_THRESHOLD_PACE_SECONDS_PER_KM + 45;
-  const vdotMin = Math.max((config?.vdotPaces.halfMarathon.minSecondsPerKm ?? from10kMin) + 20, fromThresholdMin);
-  const vdotMax = Math.max((config?.vdotPaces.halfMarathon.maxSecondsPerKm ?? from10kMax) + 20, from10kMax);
-  const minSec = Math.round(from10kMin * 0.45 + fromThresholdMin * 0.35 + vdotMin * 0.2);
-  const maxSec = Math.round(from10kMax * 0.5  + fromThresholdMax * 0.35 + vdotMax * 0.15);
-  return { minSecondsPerKm: minSec, maxSecondsPerKm: maxSec, minTime: halfTimeFromPace(minSec), maxTime: halfTimeFromPace(maxSec) };
-}
-
-function predictFromVdot(config: AthleteConfig | null) {
-  if (!config) return null;
-  return { min: halfTimeFromPace(config.vdotPaces.halfMarathon.minSecondsPerKm), max: halfTimeFromPace(config.vdotPaces.halfMarathon.maxSecondsPerKm) };
-}
+// getRealisticHalfPaceRange e predictFromVdot foram substituídos pelo athleteProfile dinâmico
+// Os paces vêm de getDynamicAthleteProfile → pacesFromVdot → halfPaces
 
 function getHrZoneForBpm(bpm: number, zones: HrZone[]): HrZone | null {
   return zones.find((z) => bpm >= z.min && bpm <= z.max) ?? null;
 }
 function getHrPctMax(bpm: number, hrMax: number) { return Math.round((bpm / hrMax) * 100); }
 
-function buildBuenosAiresAlerts(params: { hasPlan: boolean; plannedWeekKm: number; currentWeekKm: number; adherencePct: number; plannedLongRunKm: number; currentWeekLongestRunKm: number; todayStatus: string; config: AthleteConfig | null }) {
+function buildBuenosAiresAlerts(params: {
+  hasPlan: boolean;
+  plannedWeekKm: number;
+  currentWeekKm: number;
+  adherencePct: number;
+  plannedLongRunKm: number;
+  currentWeekLongestRunKm: number;
+  todayStatus: string;
+  halfPaces: { min: number; max: number } | null;
+}) {
   const alerts: { title: string; text: string; tone: string }[] = [];
-  if (!params.hasPlan) { alerts.push({ title: "Planejamento ausente", text: "Carregue uma planilha do SisRUN para comparar a semana atual.", tone: "bg-white/55 text-gray-700" }); return alerts; }
-  if (params.adherencePct < 70)       alerts.push({ title: "Semana abaixo da meta",              text: `Você executou ${params.currentWeekKm.toFixed(1)} km de ${params.plannedWeekKm.toFixed(1)} km planejados.`,                                                    tone: "bg-red-50 text-red-700"     });
-  else if (params.adherencePct < 90)  alerts.push({ title: "Semana em construção",               text: `Boa evolução, mas ainda faltam ${Math.max(params.plannedWeekKm - params.currentWeekKm, 0).toFixed(1)} km para a meta da semana.`,                           tone: "bg-amber-50 text-amber-700" });
-  else                                alerts.push({ title: "Volume da semana bem encaminhado",   text: "A execução está acompanhando bem o planejado do SisRUN.",                                                                                                     tone: "bg-emerald-50 text-emerald-700" });
+
+  if (!params.hasPlan) {
+    alerts.push({ title: "Planejamento ausente", text: "Carregue uma planilha do SisRUN para comparar a semana atual.", tone: "bg-white/55 text-gray-700" });
+    return alerts;
+  }
+
+  if (params.adherencePct < 70)
+    alerts.push({ title: "Semana abaixo da meta", text: `Você executou ${params.currentWeekKm.toFixed(1)} km de ${params.plannedWeekKm.toFixed(1)} km planejados.`, tone: "bg-red-50 text-red-700" });
+  else if (params.adherencePct < 90)
+    alerts.push({ title: "Semana em construção", text: `Boa evolução, mas ainda faltam ${Math.max(params.plannedWeekKm - params.currentWeekKm, 0).toFixed(1)} km para a meta da semana.`, tone: "bg-amber-50 text-amber-700" });
+  else
+    alerts.push({ title: "Volume da semana bem encaminhado", text: "A execução está acompanhando bem o planejado do SisRUN.", tone: "bg-emerald-50 text-emerald-700" });
+
   if (params.plannedLongRunKm > 0 && params.currentWeekLongestRunKm < params.plannedLongRunKm)
     alerts.push({ title: "Longão ainda não cumprido", text: `Previsto: ${params.plannedLongRunKm.toFixed(1)} km • maior treino da semana: ${params.currentWeekLongestRunKm.toFixed(1)} km.`, tone: "bg-amber-50 text-amber-700" });
   else if (params.plannedLongRunKm > 0)
     alerts.push({ title: "Longão da semana cumprido", text: `Previsto: ${params.plannedLongRunKm.toFixed(1)} km • maior treino da semana: ${params.currentWeekLongestRunKm.toFixed(1)} km.`, tone: "bg-emerald-50 text-emerald-700" });
+
   if (params.todayStatus === "Pendente")
     alerts.push({ title: "Treino de hoje pendente", text: "A sessão de hoje ainda não aparece como cumprida no Strava.", tone: "bg-amber-50 text-amber-700" });
-  if (params.config) {
-    const r = getRealisticHalfPaceRange(params.config);
-    alerts.push({ title: "Pace estimado recalibrado", text: `Cruzando 10 km real, limiar e VDOT com freio conservador, a faixa mais coerente para meia fica em ${formatSecondsPerKm(r.minSecondsPerKm)}–${formatSecondsPerKm(r.maxSecondsPerKm)}. O alvo de 5:40/km segue agressivo-controlado, não conservador demais.`, tone: "bg-blue-50 text-blue-700" });
+
+  if (params.halfPaces) {
+    alerts.push({
+      title: "Faixa de pace pelo VDOT dinâmico",
+      text: `Com base nos PRs do Strava, o VDOT atual projeta pace de ${formatSecondsPerKm(params.halfPaces.min)}–${formatSecondsPerKm(params.halfPaces.max)} para a meia. Atualiza automaticamente a cada novo resultado.`,
+      tone: "bg-blue-50 text-blue-700",
+    });
   }
+
   return alerts;
 }
 
@@ -520,7 +511,7 @@ export default async function BuenosAiresPage() {
     : todaySisrunRow.plannedDistanceKm > 0 && todayStravaKm >= todaySisrunRow.plannedDistanceKm ? "Concluído"
     : "Parcial";
 
-  const alerts       = buildBuenosAiresAlerts({ hasPlan: Boolean(sisrunWeek), plannedWeekKm, currentWeekKm, adherencePct: weeklyAdherencePct, plannedLongRunKm: sisrunWeek?.longRunPlannedKm ?? 0, currentWeekLongestRunKm, todayStatus, config: null });
+  const alerts       = buildBuenosAiresAlerts({ hasPlan: Boolean(sisrunWeek), plannedWeekKm, currentWeekKm, adherencePct: weeklyAdherencePct, plannedLongRunKm: sisrunWeek?.longRunPlannedKm ?? 0, currentWeekLongestRunKm, todayStatus, halfPaces });
   const hrZones: HrZone[] = [];
   const hrMax   = 184;
 
