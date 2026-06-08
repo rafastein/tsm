@@ -11,6 +11,7 @@ import {
   getLongRunsFromActivities,
 } from "../lib/strava-long-runs";
 import HalfMarathonProjection from "../components/HalfMarathonProjection";
+import LongRunCharts from "../components/LongRunCharts";
 
 type StravaActivity = {
   id: number;
@@ -341,6 +342,12 @@ export default async function LongoesPage() {
             </div>
           )}
         </section>
+
+        {longRuns.length >= 2 && (
+          <section className="mt-8">
+            <LongRunCharts longRuns={longRuns} />
+          </section>
+        )}
 
         {projectionLongRuns.length >= 3 && (
           <section className="mt-8">

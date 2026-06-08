@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { formatBRDate } from "./lib/date-utils";
 import ActivitiesPanel from "./components/ActivitiesPanel";
+import TodayWorkoutCard from "./components/TodayWorkoutCard";
+import WeeklyGoalCard from "./components/WeeklyGoalCard";
+import NextRaceCard from "./components/NextRaceCard";
+import WeeklyPlanVsActualChart from "./components/WeeklyPlanVsActualChart";
 import WeeklyComparisonChart from "./components/WeeklyComparisonChart";
 import {
   buildWeeklyComparison,
@@ -361,33 +365,37 @@ export default async function Home() {
           />
         </section>
 
+        {/* Treino de hoje + Meta semanal */}
         <section className="mb-8 grid gap-4 md:grid-cols-2">
-          <div className="rounded-3xl app-card p-6">
-            <h3 className="mb-2 font-semibold">Treino de hoje</h3>
+          <TodayWorkoutCard
+            todaySisrunRow={todaySisrunRow}
+            todayStravaKm={todayStravaKm}
+          />
+          <WeeklyGoalCard
+            currentKm={currentWeekKm}
+            plannedKm={plannedWeekKm}
+            progressPct={weeklyAdherencePct}
+            alerts={alerts}
+          />
+        </section>
 
-            {todaySisrunRow ? (
-              <>
-                <p className="text-sm text-gray-500">
-                  Planejado: {todaySisrunRow.plannedDistanceKm.toFixed(1)} km
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  Feito no Strava: {todayStravaKm.toFixed(1)} km
-                </p>
-                <p
-                  className={`mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium ${
-                    todayStatus === "Descanso"
-                      ? "bg-[#e0007a]/10 text-gray-700"
-                      : "bg-[#e0007a]/10 text-[#b00060]"
-                  }`}
-                >
-                  {todayStatus}
-                </p>
-              </>
-            ) : (
-              <p className="text-gray-500">Nenhum treino previsto para hoje.</p>
-            )}
-          </div>
+        {/* Próxima prova */}
+        <section className="mb-8">
+          <NextRaceCard
+            races={[{
+              name: "Meia Maratona de Buenos Aires",
+              date: "2026-08-23",
+              location: "Buenos Aires, Argentina",
+              distanceKm: 21.1,
+              objective: "Sub 2:00",
+              targetPaceSecPerKm: 341,
+              href: "/buenos-aires",
+            }]}
+          />
+        </section>
 
+        {/* Resumo geral */}
+        <section className="mb-8">
           <div className="rounded-3xl app-card p-6">
             <h3 className="mb-2 font-semibold">Resumo geral 2026</h3>
             <p className="text-gray-600">
@@ -540,10 +548,12 @@ export default async function Home() {
         </section>
 
         <section className="mb-8">
-          <WeeklyComparisonChart
-            items={weeklyComparison}
-            title="Planejado x executado por semana"
-            subtitle="Volume planejado no SisRUN comparado com o executado no Strava."
+          <WeeklyPlanVsActualChart
+            weeks={weeklyComparison.map((w) => ({
+              label: w.label,
+              planned: w.plannedKm,
+              actual: w.executedKm,
+            }))}
           />
         </section>
 
