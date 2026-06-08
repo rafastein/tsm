@@ -59,9 +59,9 @@ export default async function SeasonCalendar() {
 
   const now = Date.now();
 
-  // Montar eventos a partir das provas do Strava
+  // Montar eventos a partir das provas do Strava — apenas 2026
   const stravaEvents: EventItem[] = stravaRaces
-    .filter((r) => r.date) // só com data válida
+    .filter((r) => r.date?.startsWith("2026"))
     .map((r) => ({
       key:       r.id,
       name:      cleanName(r.name),
