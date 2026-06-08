@@ -228,6 +228,16 @@ function estimateHalfFromRun(activity: StravaActivity) {
   return Math.round(est);
 }
 
+// Projeção direta de uma prova de meia maratona (Riegel, 1.06)
+// É o dado mais confiável — uma prova real supera qualquer estimativa de treino
+function predictFromHalfRace(half: StravaActivity | null): number | null {
+  if (!half) return null;
+  const km = half.distance / 1000;
+  if (km < 20 || km > 22.5) return null;
+  // Projeta a meia oficial (21.0975 km) a partir da distância real da prova
+  return Math.round(half.moving_time * Math.pow(HALF_MARATHON_KM / km, 1.06));
+}
+
 // Filtra longões: corridas acima de 13km
 // e retorna o melhor tempo estimado para a meia maratona
 function predictFromLongRun(runs: StravaActivity[]) {
@@ -415,6 +425,12 @@ export default async function BuenosAiresPage() {
     ? namedLongRuns.reduce((m, a) => (a.distance > m.distance ? a : m))
     : null;
   const longestRunKm = longestRun ? longestRun.distance / 1000 : 0;
+
+  // Melhor meia maratona real (20–22.5 km) — dado mais confiável para projeção
+  const bestHalfRace = runs
+    .filter((a) => a.distance / 1000 >= 20 && a.distance / 1000 <= 22.5)
+    .sort((a, b) => a.moving_time - b.moving_time)[0] ?? null;
+  const predictedFromHalfRace = predictFromHalfRace(bestHalfRace);
 
   const weekMap = new Map<string, { label: string; distanceKm: number }>();
   runs.forEach((a) => {
@@ -689,18 +705,40 @@ export default async function BuenosAiresPage() {
             <h3 className="text-xl font-semibold text-gray-900">Projeções da meia maratona</h3>
             <p className="mt-1 text-sm text-gray-500">Comparação entre alvo, treinos feitos, dados reais de prova e VDOT recalibrado.</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <ProjectionCard title="Pelo pace-alvo"              value={formatFullDuration(targetPredictionSeconds)} caption={targetPaceLabel} />
-              <ProjectionCard title="Pelo melhor longão (6 meses)" value={predictedFromLongRun && bestLongRun ? formatFullDuration(predictedFromLongRun) : "Sem dado"} caption={predictedFromLongRun && bestLongRun ? `${bestLongRun.name} • ${(bestLongRun.distance / 1000).toFixed(1)} km` : "Nenhum longão nomeado encontrado nos últimos 6 meses."} />
-              <ProjectionCard title="Projeção calculada pelo site" value={predictedBySite ? formatFullDuration(predictedBySite) : "Sem dado"} caption={predictedBySite ? "Modelo híbrido com treinos feitos, longão, altimetria e consistência semanal." : "Dados insuficientes para projeção."} highlight />
-              <div className="col-span-full rounded-2xl app-card-soft p-4 ring-1 ring-blue-200">
+
+              {/* Prova real — ancôra mais confiável */}
+              {predictedFromHalfRace && bestHalfRace && (
+                <div className="col-span-full rounded-2xl bg-[#e0007a]/10 ring-1 ring-[#e0007a]/30 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-[#b00060]">Pela prova real ⭐ mais confiável</p>
+                    <span className="rounded-full bg-[#e0007a]/20 px-2 py-0.5 text-xs font-semibold text-[#8a1452]">
+                      Riegel 1.06
+                    </span>
+                  </div>
+                  <p className="mt-2 text-3xl font-bold text-[#8a1452]">{formatFullDuration(predictedFromHalfRace)}</p>
+                  <p className="mt-1 text-sm text-[#b00060]">
+                    {bestHalfRace.name} · {(bestHalfRace.distance / 1000).toFixed(1)} km · {formatSecondsPerKm(Math.round(bestHalfRace.moving_time / (bestHalfRace.distance / 1000)))}/km · {formatDate(bestHalfRace.start_date_local)}
+                  </p>
+                  <p className="mt-2 text-xs text-[#c0006b]">
+                    Uma prova de meia completa supera qualquer estimativa de treino. Este é o dado mais representativo do potencial atual.
+                  </p>
+                </div>
+              )}
+
+              <ProjectionCard title="Pelo pace-alvo" value={formatFullDuration(targetPredictionSeconds)} caption={targetPaceLabel} />
+              <ProjectionCard title="Pelo melhor longão (6 meses)" value={predictedFromLongRun && bestLongRun ? formatFullDuration(predictedFromLongRun) : "Sem dado"} caption={predictedFromLongRun && bestLongRun ? `${bestLongRun.name} • ${(bestLongRun.distance / 1000).toFixed(1)} km` : "Nenhum longão encontrado nos últimos 6 meses."} />
+              <ProjectionCard title="Modelo híbrido (site)" value={predictedBySite ? formatFullDuration(predictedBySite) : "Sem dado"} caption={predictedBySite ? "Treinos feitos, longão e consistência semanal." : "Dados insuficientes."} highlight />
+
+              <div className="rounded-2xl app-card-soft p-4 ring-1 ring-blue-200">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm text-blue-600">Projeção recalibrada</p>
-                  {vdot && <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-medium text-blue-800">VDOT {vdot.toFixed(1)} · PRs Strava</span>}
+                  <p className="text-sm text-blue-600">Potencial pelo VDOT</p>
+                  {vdot && <span className="rounded-full bg-blue-200 px-2 py-0.5 text-xs font-medium text-blue-800">VDOT {vdot.toFixed(1)}</span>}
                 </div>
                 <p className="mt-2 text-2xl font-bold text-blue-900">{formatDurationShort(realisticHalfRange.minTime)}–{formatDurationShort(realisticHalfRange.maxTime)}</p>
-                <p className="mt-1 text-sm text-blue-700">Pace {formatSecondsPerKm(realisticHalfRange.minSecondsPerKm)}–{formatSecondsPerKm(realisticHalfRange.maxSecondsPerKm)} · baseado nos PRs do Strava e VDOT {vdot?.toFixed(1)} com margem conservadora.</p>
-                {predictedFromVdotRange && <p className="mt-2 text-xs text-blue-600">VDOT bruto: {formatDurationShort(predictedFromVdotRange.min)}–{formatDurationShort(predictedFromVdotRange.max)}. Usado apenas como teto de potencial, não como previsão direta de prova.</p>}
+                <p className="mt-1 text-sm text-blue-700">Pace {formatSecondsPerKm(realisticHalfRange.minSecondsPerKm)}–{formatSecondsPerKm(realisticHalfRange.maxSecondsPerKm)} · PRs do Strava com margem conservadora.</p>
+                {predictedFromVdotRange && <p className="mt-2 text-xs text-blue-600">VDOT bruto: {formatDurationShort(predictedFromVdotRange.min)}–{formatDurationShort(predictedFromVdotRange.max)} — teto de potencial.</p>}
               </div>
+
             </div>
           </div>
 
