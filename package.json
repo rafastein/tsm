@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "@vnedyalk0v/react19-simple-maps": "^2.0.7",
     "chart.js": "^4.5.1",
     "d3-geo": "^3.1.1",

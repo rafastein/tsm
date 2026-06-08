@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import * as XLSX from "xlsx";
 import { parseSisrunWorkbook } from "@/app/lib/sisrun-xls-parser";
+
+const SISRUN_KEY = "sisrun:latest";
 
 export async function POST(req: Request) {
   try {
@@ -22,18 +22,27 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(arrayBuffer);
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const parsedData = parseSisrunWorkbook(workbook, file.name);
+    const json = JSON.stringify(parsedData);
 
-    const dir = path.join(process.cwd(), "data");
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(
-      path.join(dir, "sisrun-latest.json"),
-      JSON.stringify(parsedData, null, 2),
-      "utf-8"
-    );
+    const redisUrl   = process.env.KV_REST_API_URL   ?? process.env.UPSTASH_REDIS_REST_URL;
+    const redisToken = process.env.KV_REST_API_TOKEN  ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+    const isVercel   = !!(redisUrl && redisToken);
+
+    if (isVercel) {
+      const { Redis } = await import("@upstash/redis");
+      const redis = new Redis({ url: redisUrl!, token: redisToken! });
+      await redis.set(SISRUN_KEY, json);
+    } else {
+      const fs   = await import("fs/promises");
+      const path = await import("path");
+      const dir  = path.join(process.cwd(), "data");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, "sisrun-latest.json"), json, "utf-8");
+    }
 
     return NextResponse.json({
       success: true,
-      storage: "file",
+      storage: isVercel ? "upstash" : "file",
       fileName: parsedData.fileName,
       athleteName: parsedData.athleteName,
       weeks: parsedData.weeks.length,
