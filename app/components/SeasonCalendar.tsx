@@ -60,7 +60,7 @@ export default async function SeasonCalendar() {
       dateStr:   formatRaceDate(r.date),
       isoDate:   r.date,
       month:     getMonthLabel(r.date),
-      semester:  isSemester1(r.date) ? 1 : 2,
+      semester:  (isSemester1(r.date) ? 1 : 2) as 1 | 2,
       status:    "completed" as const,
       distanceKm: r.distanceKm,
       time:      r.time,
