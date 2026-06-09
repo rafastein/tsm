@@ -1,0 +1,22 @@
+{
+  "hrMax": 187,
+  "hrRest": 64,
+  "lactateThreshold": 167,
+  "vdot": 44,
+  "vo2max": 44,
+  "vo2maxSources": ["Garmin 29/04/2026"],
+  "hrZones": [
+    { "name": "Recuperação",        "min": 0,   "max": 133, "color": "#5DCAA5" },
+    { "name": "Resist. aeróbica",   "min": 134, "max": 150, "color": "#639922" },
+    { "name": "Potência aeróbica",  "min": 151, "max": 159, "color": "#EF9F27" },
+    { "name": "Limiar",             "min": 160, "max": 170, "color": "#D85A30" },
+    { "name": "Resist. anaeróbica", "min": 171, "max": 177, "color": "#E24B4A" },
+    { "name": "Potência anaeróbica","min": 178, "max": 999, "color": "#A32D2D" }
+  ],
+  "vdotPaces": {
+    "marathon":     { "minSecondsPerKm": 324, "maxSecondsPerKm": 328 },
+    "halfMarathon": { "minSecondsPerKm": 308, "maxSecondsPerKm": 312 },
+    "10k":          { "minSecondsPerKm": 294, "maxSecondsPerKm": 298 },
+    "5k":           { "minSecondsPerKm": 282, "maxSecondsPerKm": 286 }
+  }
+}
