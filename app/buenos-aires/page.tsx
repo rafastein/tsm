@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { formatBRDate, getBRDate, getActivityDate } from "../lib/date-utils";
+import { isLongRunActivityName } from "../lib/strava-long-runs";
 
 import Link from "next/link";
 import HalfMarathonProjection from "../components/HalfMarathonProjection";
@@ -560,13 +561,14 @@ export default async function BuenosAiresPage() {
   );
 
   // ── Dados para a calculadora de projeção ──────────────────────────────────
-  // Longões para a calculadora: últimos 6 meses, ≥13km, ordenados do mais antigo ao mais recente
+  // Longões para a calculadora: apenas atividades com "longão" no nome (normalizado).
+  // Mesma lógica do projeto strava — provas ficam de fora naturalmente.
   const sixMonthsAgo = Date.now() - 180 * 24 * 3600 * 1000;
   const projRunsBase = runs
     .filter((a) => {
       const km = a.distance / 1000;
       const actDate = new Date(getActivityDate(a)).getTime();
-      return km >= PROJECTION_LONG_RUN_MIN_KM && actDate >= sixMonthsAgo;
+      return km >= PROJECTION_LONG_RUN_MIN_KM && actDate >= sixMonthsAgo && isLongRunActivityName(a.name);
     })
     .sort((a, b) => new Date(getActivityDate(a)).getTime() - new Date(getActivityDate(b)).getTime());
 
