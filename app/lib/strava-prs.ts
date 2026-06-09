@@ -7,52 +7,53 @@
  * - 6–18 meses: peso 50% — ainda relevante, mas decrescente
  * - Acima de 18 meses: descartado
  *
- * Justificativa: durante ciclos de meia maratona, provas a fundo ficam
+ * Justificativa: durante ciclos de maratona, provas a fundo ficam
  * escassas por meses. Cortar em 12 meses perderia referências válidas
- * justamente quando mais precisamos delas.
+ * (ex: Lisboa/Berlim) justamente quando mais precisamos delas.
  * A ponderação por tempo preserva os melhores resultados recentes
  * como âncora sem deixar performances antigas distorcer para cima.
  */
 
-import { calculateVdot, vo2maxFromVdot, pacesFromVdot } from "./vdot";
+import { calculateVdot, aggregateVdot, pacesFromVdot, vo2maxFromVdot } from "./vdot";
 
-type StravaActivity = {
-  id: number;
+export type BestEffort = {
   name: string;
-  distance: number;
-  moving_time: number;
-  type: string;
-  start_date: string;
-  start_date_local?: string;
-};
-
-type AthletePersonalRecord = {
-  timeSec: number;
   distanceM: number;
+  timeSec: number;
   activityId: number;
-  activityName: string;
+  startDate: string;
   ageMonths: number;
 };
 
-type AthletePersonalRecords = {
-  km5:      AthletePersonalRecord | null;
-  km10:     AthletePersonalRecord | null;
-  half:     AthletePersonalRecord | null;
-  marathon: AthletePersonalRecord | null;
+export type AthletePersonalRecords = {
+  km5:      BestEffort | null;
+  km10:     BestEffort | null;
+  half:     BestEffort | null;
+  marathon: BestEffort | null;
 };
 
-// Faixas de distância aceitas para cada PR (em metros)
+export type DynamicAthleteProfile = {
+  prs: AthletePersonalRecords;
+  vdot: number | null;
+  vo2max: number | null;
+  paces: {
+    km5:      number | null;
+    km10:     number | null;
+    half:     { min: number; max: number } | null;
+    marathon: { min: number; max: number } | null;
+  };
+};
+
 const PR_DISTANCE_RANGES: Record<
   keyof AthletePersonalRecords,
   { min: number; max: number; target: number }
 > = {
-  km5:      { min: 4800,  max: 5300,  target: 5000   },
-  km10:     { min: 9700,  max: 10400, target: 10000  },
-  half:     { min: 20500, max: 21800, target: 21097  },
-  marathon: { min: 41500, max: 43000, target: 42195  },
+  km5:      { min: 4800,  max: 5300,  target: 5000  },
+  km10:     { min: 9700,  max: 10400, target: 10000 },
+  half:     { min: 20500, max: 21800, target: 21097 },
+  marathon: { min: 41500, max: 43000, target: 42195 },
 };
 
-// Pesos para a média ponderada do VDOT — provas mais longas = mais confiáveis para meia maratona
 const DISTANCE_WEIGHTS: Record<keyof AthletePersonalRecords, number> = {
   km5: 1, km10: 2, half: 3, marathon: 4,
 };
@@ -60,6 +61,17 @@ const DISTANCE_WEIGHTS: Record<keyof AthletePersonalRecords, number> = {
 const WINDOW_FULL_MONTHS    = 6;
 const WINDOW_PARTIAL_MONTHS = 18;
 const PARTIAL_WEIGHT        = 0.5;
+
+type StravaActivity = {
+  id: number;
+  name: string;
+  type: string;
+  sport_type?: string; // campo atual da API v3 (substitui `type`)
+  distance: number;
+  moving_time: number;
+  start_date: string;
+  start_date_local: string;
+};
 
 function temporalWeight(startDate: string): number {
   const ageMs     = Date.now() - new Date(startDate).getTime();
@@ -88,13 +100,12 @@ async function fetchRunsLast18Months(accessToken: string): Promise<StravaActivit
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
     });
-
     if (!res.ok) break;
 
     const data = (await res.json()) as StravaActivity[];
     if (!Array.isArray(data) || data.length === 0) break;
 
-    all.push(...data.filter((a) => a.type === "Run"));
+    all.push(...data.filter((a) => a.type === "Run" || a.sport_type === "Run"));
     if (data.length < 200) break;
   }
 
@@ -108,7 +119,9 @@ function extractPRsFromRuns(runs: StravaActivity[]): {
   const prs: AthletePersonalRecords = { km5: null, km10: null, half: null, marathon: null };
   const vdotInputs: { vdot: number; weight: number }[] = [];
 
-  for (const [key, range] of Object.entries(PR_DISTANCE_RANGES) as [keyof AthletePersonalRecords, typeof PR_DISTANCE_RANGES[keyof AthletePersonalRecords]][]) {
+  for (const key of Object.keys(PR_DISTANCE_RANGES) as (keyof AthletePersonalRecords)[]) {
+    const range = PR_DISTANCE_RANGES[key];
+
     const candidates = runs
       .filter((r) => r.distance >= range.min && r.distance <= range.max)
       .map((r) => {
@@ -121,19 +134,22 @@ function extractPRsFromRuns(runs: StravaActivity[]): {
 
     if (!candidates.length) continue;
 
+    // PR para exibição = melhor tempo absoluto na janela
     const best = candidates.reduce((a, b) =>
       a.normalizedTime <= b.normalizedTime ? a : b
     );
 
     prs[key] = {
-      timeSec:      best.normalizedTime,
-      distanceM:    range.target,
-      activityId:   best.run.id,
-      activityName: best.run.name,
-      ageMonths:    ageInMonths(best.run.start_date_local ?? best.run.start_date),
+      name:       best.run.name,
+      distanceM:  range.target,
+      timeSec:    best.normalizedTime,
+      activityId: best.run.id,
+      startDate:  best.run.start_date_local ?? best.run.start_date,
+      ageMonths:  ageInMonths(best.run.start_date_local ?? best.run.start_date),
     };
 
-    // VDOT ponderado: usa apenas o MELHOR tempo por distância
+    // VDOT ponderado: usa apenas o MELHOR tempo por distância (não todas as corridas)
+    // Usar todas puxaria o VDOT para baixo por causa dos treinos leves
     const vdot = calculateVdot(range.target, best.normalizedTime);
     if (vdot !== null && vdot > 20) {
       vdotInputs.push({ vdot, weight: best.tw * DISTANCE_WEIGHTS[key] });
@@ -147,44 +163,47 @@ export function formatPrTime(timeSec: number): string {
   const h = Math.floor(timeSec / 3600);
   const m = Math.floor((timeSec % 3600) / 60);
   const s = Math.round(timeSec % 60);
-
   if (h > 0)
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/**
- * Função principal: busca corridas dos últimos 18 meses, extrai PRs
- * com peso temporal e retorna o perfil dinâmico do atleta com VDOT calculado.
- */
-export async function getDynamicAthleteProfile(accessToken: string) {
+export async function getDynamicAthleteProfile(
+  accessToken: string
+): Promise<DynamicAthleteProfile> {
+  const empty: DynamicAthleteProfile = {
+    prs:    { km5: null, km10: null, half: null, marathon: null },
+    vdot:   null,
+    vo2max: null,
+    paces:  { km5: null, km10: null, half: null, marathon: null },
+  };
+
   try {
     const runs = await fetchRunsLast18Months(accessToken);
+    if (!runs.length) return empty;
 
     const { prs, vdotInputs } = extractPRsFromRuns(runs);
 
-    if (vdotInputs.length === 0) return null;
+    const vdot = aggregateVdot(vdotInputs);
+    if (vdot === null) return { ...empty, prs };
 
-    const totalWeight = vdotInputs.reduce((s, x) => s + x.weight, 0);
-    const vdot        = vdotInputs.reduce((s, x) => s + x.vdot * x.weight, 0) / totalWeight;
-    const vo2max      = vo2maxFromVdot(vdot);
-    const racePaces   = pacesFromVdot(vdot);
-
-    const MARGIN = 5;
+    const vo2max    = vo2maxFromVdot(vdot);
+    const racePaces = pacesFromVdot(vdot);
+    const MARGIN    = 5;
 
     return {
-      vdot:    Math.round(vdot * 10) / 10,
-      vo2max:  Math.round(vo2max * 10) / 10,
       prs,
+      vdot,
+      vo2max,
       paces: {
         km5:      racePaces.km5,
         km10:     racePaces.km10,
-        half:     { min: racePaces.half - MARGIN, max: racePaces.half + MARGIN },
+        half:     { min: racePaces.half     - MARGIN, max: racePaces.half     + MARGIN },
         marathon: { min: racePaces.marathon - MARGIN, max: racePaces.marathon + MARGIN },
       },
     };
-  } catch (err) {
-    console.warn("getDynamicAthleteProfile error:", err);
-    return null;
+  } catch (error) {
+    console.warn("Erro ao buscar perfil dinâmico do atleta:", error);
+    return empty;
   }
 }
