@@ -329,15 +329,15 @@ export default function HalfMarathonProjection({ longRuns, weeksToRace, races = 
         />
         <SliderRow
           label="Fator treino → prova"
-          valueLabel={pacingFactor < 1 ? `−${Math.round((1 - pacingFactor) * 100)}%` : `+${Math.round((pacingFactor - 1) * 100)}%`}
+          valueLabel={`${Math.round(pacingFactor * 100)}%`}
           min={0.92}
-          max={1.02}
+          max={1.00}
           step={0.01}
           value={pacingFactor}
           onChange={setPacingFactor}
         />
         <p style={{ margin: 0, fontSize: 11, color: "#8a1452", opacity: 0.5, lineHeight: 1.45 }}>
-          Na meia maratona o pace de prova costuma ser 2–5% mais rápido que o pace de treino.
+          97–100% é o fator típico para meia: em prova você corre 0–3% mais rápido que o pace médio dos longões.
         </p>
       </div>
 
