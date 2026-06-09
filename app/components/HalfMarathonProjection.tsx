@@ -101,7 +101,7 @@ export default function HalfMarathonProjection({ longRuns, weeksToRace, races = 
   const chartRef  = useRef<Chart | null>(null);
 
   const [nLongRuns,    setNLongRuns]    = useState(3);
-  const [pacingFactor, setPacingFactor] = useState(1.04);
+  const [pacingFactor, setPacingFactor] = useState(0.97);
 
   const data = useMemo(() => {
     if (!longRuns || longRuns.length === 0) return null;
@@ -329,15 +329,15 @@ export default function HalfMarathonProjection({ longRuns, weeksToRace, races = 
         />
         <SliderRow
           label="Fator treino → prova"
-          valueLabel={`+${Math.round((pacingFactor - 1) * 100)}%`}
-          min={1.00}
-          max={1.10}
+          valueLabel={pacingFactor < 1 ? `−${Math.round((1 - pacingFactor) * 100)}%` : `+${Math.round((pacingFactor - 1) * 100)}%`}
+          min={0.92}
+          max={1.02}
           step={0.01}
           value={pacingFactor}
           onChange={setPacingFactor}
         />
         <p style={{ margin: 0, fontSize: 11, color: "#8a1452", opacity: 0.5, lineHeight: 1.45 }}>
-          +3–5% é o delta típico entre pace de longão e pace de prova na meia maratona.
+          Na meia maratona o pace de prova costuma ser 2–5% mais rápido que o pace de treino.
         </p>
       </div>
 
