@@ -293,10 +293,12 @@ function predictByTrainingModel(params: {
   }
 
   if (halfP !== null) {
+    // Prova real de meia já reflete volume, prontidão e condições do dia —
+    // nenhum ajuste adicional: seria dupla contagem.
     return {
-      seconds: halfP + totalPenalty,
-      confidence,
-      caption: `confiança ${confidence.toLowerCase()} · meia real + ajuste ${penaltyLabel(totalPenalty)}`,
+      seconds: halfP,
+      confidence: "Alta",
+      caption: "confiança alta · prova real de meia",
     };
   }
 
@@ -465,8 +467,15 @@ export default async function BuenosAiresPage() {
   const longestRunKm = longestRun ? longestRun.distance / 1000 : 0;
 
   // Melhor meia maratona real (20–22.5 km) — dado mais confiável para projeção
+  // Exclui longões e treinos pelo nome para evitar falsos positivos
+  const TRAINING_NAME_PATTERN = /longão|longao|treino|fartlek|intervalado|progressivo|regenerativo|regen|easy|recovery|warm.?up|cool.?down/i;
   const bestHalfRace = runs
-    .filter((a) => a.distance / 1000 >= 20 && a.distance / 1000 <= 22.5)
+    .filter((a) => {
+      const km = a.distance / 1000;
+      if (km < 20 || km > 22.5) return false;
+      if (TRAINING_NAME_PATTERN.test(a.name)) return false;
+      return true;
+    })
     .sort((a, b) => a.moving_time - b.moving_time)[0] ?? null;
   const predictedFromHalfRace = predictFromHalfRace(bestHalfRace);
 

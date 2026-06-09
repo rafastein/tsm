@@ -54,8 +54,11 @@ const PR_DISTANCE_RANGES: Record<
   marathon: { min: 41500, max: 43000, target: 42195 },
 };
 
+// Pesos por distância para agregação do VDOT.
+// Meia maratona recebe peso alto (5) pois é a prova-alvo e o preditor mais
+// confiável para o ciclo. 5k e 10k têm menor correlação com desempenho de meia.
 const DISTANCE_WEIGHTS: Record<keyof AthletePersonalRecords, number> = {
-  km5: 1, km10: 2, half: 3, marathon: 4,
+  km5: 1, km10: 2, half: 5, marathon: 4,
 };
 
 const WINDOW_FULL_MONTHS    = 6;
